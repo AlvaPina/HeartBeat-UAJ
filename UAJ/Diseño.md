@@ -11,11 +11,9 @@ A (Estética): Genera tensión.
 
 Métricas a recoger: 
 
-Tamaño de la zona verde en el momento exacto en que se cometen los fallos.
-distancia al enemigo en el intento;
+Tamaño de la zona verde en el momento exacto en que se cometen los fallos.(con la barra verde se representa la distancia al enemigo)
 tasa de fallo según rangos de distancia;
-tiempo entre aparición del peligro y fallo; 
-número de fallos consecutivos.
+
 
 Hipótesis 2 (Uso táctico de armarios)
 
