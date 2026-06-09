@@ -25,7 +25,12 @@ D (Dinámica): El jugador usará los armarios como nodos de seguridad, modifican
 
 A (Estética): Genera una sensación de planificación táctica y alivio temporal al encontrar una ruta segura.
 
-Métricas a recoger: Número de usos por cada ID de armario; Porcentaje de armarios no utilizados por nivel.
+Métricas a recoger:
+distancia media recorrida entre armarios;
+tiempo medio dentro del armario;
+porcentaje de usos de armario con enemigo cerca;
+muertes ocurridas cerca de armarios no usados;
+armario usado justo después de PlayerSpotted.
 
 Hipótesis 3 (la fatiga tiene efecto negativo)
 
@@ -50,11 +55,18 @@ SessionStart / End (Inicio y fin de la ejecución del juego) Parámetros: duraci
 
 LevelStart / Complete (Flujo de progresión del jugador por los 6 niveles) Parámetros: tiempo_completado
 
-PlayerState (para poder tener muestreos de por donde va) Parámetros: posición, velocidad y estado del jugador
+PlayerState se registrará cada 0.5 segundos o 1 segundo, y también en momentos clave como detección, entrada en escondite, muerte, uso de objeto o activación de fatiga. Parámetros: posición, velocidad, escondido, uso de objetos y estado del jugador
 
 PlayerDeath (El jugador es alcanzado por un enemigo) Parámetros: posición y estado del jugador
 
-PlayerSpotted (El jugador entra en el cono de visión de un enemigo) Parámetros: estado del jugador
+PlayerSpotted (El jugador entra en el cono de visión de un enemigo) Parámetros: 
+estado del jugador
+posición del jugador;
+ID del enemigo;
+distancia al enemigo;
+si el jugador estaba corriendo, andando, oculto o fatigado;
+tiempo desde el último HeartbeatAttempt;
+tiempo hasta muerte o escape.
 
 HeartbeatAttempt (Cada vez que el jugador pulsa "Espacio" para el pulso) Parámetros: éxito/fallo, tamaño de la zona verde (o lo que es lo mismo "distancia del enemigo mas cercano")
 
@@ -68,16 +80,13 @@ ItemUsed (Uso de Píldora, Reloj, Caja) Parámetros: estado del jugador (fatigad
 
 **Todos los eventos tienen un evento base que nos indicará timestamp, idEvento, idSesion, tipoEvento y nivel**
 
-C) Informe final con mapa de calor de donde muere el jugador en cada nivel, mapa con el recorrido que sigue, presentación de todas las estadisticas y si las hipotesis quedan validadas o no.
+C) Informe final con mapa de calor:
 
-2. INPUT Y REPLAY (opcional, quizas es mucho para dos)
-Queremos poder guardar el input de un partida para poder reproducirlo en otra. Cómo vamos a lograr la repetición exacta (determinismo). Tenemos dos retos técnicos para conseguir esto:
-
-El RNG (Aleatoriedad): En EnemyAI.cs se usa Random.Range para el sonido de los enemigos. Tendremos que proponer fijar una semilla (Seed) compartida entre la partida guardada y la repetición.
-
-Los Temporizadores: Guardar el input no por tiempo (Time.time), sino por frame físico (Time.frameCount o en el FixedUpdate()), para que el lag del ordenador no desincronice al jugador de los enemigos.
-
-
-
-NOTAS SUCIAS:
-- Quizas se puede hacer otra hipotesis con el uso de algún objeto como pildora, caja o reloj.
+mapas de calor de muertes por nivel;
+mapas de recorrido del jugador;
+zonas con más PlayerSpotted;
+armarios más y menos usados;
+relación entre distancia al enemigo y fallos de pulso;
+relación entre fatiga y muerte/detección;
+uso de objetos antes de morir o escapar;
+conclusión por hipótesis: validada, parcialmente validada o no validada.
