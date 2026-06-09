@@ -9,15 +9,21 @@ D (Dinámica): Bajo la presión de tener a un Lútano cerca, el jugador cometer�
 
 A (Estética): Genera tensión.
 
-Métricas a recoger: Tamaño medio de la zona verde en el momento exacto en que se cometen los fallos.
+Métricas a recoger: 
+
+Tamaño de la zona verde en el momento exacto en que se cometen los fallos.
+distancia al enemigo en el intento;
+tasa de fallo según rangos de distancia;
+tiempo entre aparición del peligro y fallo; 
+número de fallos consecutivos.
 
 Hipótesis 2 (Uso táctico de armarios)
 
 M (Mecánica): Distribución de escondites estáticos (armarios) por el nivel.
 
-D (Dinámica): El jugador trazará rutas seguras gracias a los armarios.
+D (Dinámica): El jugador usará los armarios como nodos de seguridad, modificando su ruta para desplazarse de escondite en escondite.
 
-A (Estética): ayuda a nuestra intención de tener un entorno útil.
+A (Estética): Genera una sensación de planificación táctica y alivio temporal al encontrar una ruta segura.
 
 Métricas a recoger: Número de usos por cada ID de armario; Porcentaje de armarios no utilizados por nivel.
 
@@ -30,6 +36,12 @@ D (Dinámica): La inmovilidad aumentará drásticamente la probabilidad de que e
 A (Estética): Castigo que refuerza la tensión.
 
 Métricas a recoger: % de eventos PlayerSpotted (cuando player entra en cono de visión) que ocurren mientras el jugador tiene el estado Tired == true frente a cuando está sano; Tiempo medio de supervivencia tras entrar en fatiga.
+
+Hipótesis 4: Uso táctico de objetos
+M: El jugador dispone de objetos consumibles como píldora, reloj o caja.
+D: El jugador tenderá a usarlos en momentos de amenaza cercana o tras entrar en fatiga.
+A: Refuerza la sensación de supervivencia y toma de decisiones bajo presión.
+Métricas: porcentaje de objetos usados con enemigos en rango, tiempo entre detección y uso, tasa de supervivencia tras usar cada objeto, objetos no usados al morir.
 
 B) Los Eventos de Telemetría
 Para validar esas hipótesis, necesitaremos los siguientes eventos:
@@ -61,7 +73,7 @@ C) Informe final con mapa de calor de donde muere el jugador en cada nivel, mapa
 2. INPUT Y REPLAY (opcional, quizas es mucho para dos)
 Queremos poder guardar el input de un partida para poder reproducirlo en otra. Cómo vamos a lograr la repetición exacta (determinismo). Tenemos dos retos técnicos para conseguir esto:
 
-El RNG (Aleatoriedad): En EnemyAI.cs usáis Random.Range para el sonido de los enemigos. Tendremos que proponer fijar una semilla (Seed) compartida entre la partida guardada y la repetición.
+El RNG (Aleatoriedad): En EnemyAI.cs se usa Random.Range para el sonido de los enemigos. Tendremos que proponer fijar una semilla (Seed) compartida entre la partida guardada y la repetición.
 
 Los Temporizadores: Guardar el input no por tiempo (Time.time), sino por frame físico (Time.frameCount o en el FixedUpdate()), para que el lag del ordenador no desincronice al jugador de los enemigos.
 
