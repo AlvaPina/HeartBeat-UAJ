@@ -13,6 +13,7 @@ Métricas a recoger:
 
 Tamaño de la zona verde en el momento exacto en que se cometen los fallos.(con la barra verde se representa la distancia al enemigo)
 tasa de fallo según rangos de distancia;
+(representaremos en una grafica la tasa de fallos en función del tamaño de la barra verde/distancia enemgios)
 
 
 Hipótesis 2 (Uso táctico de armarios)
@@ -24,7 +25,6 @@ D (Dinámica): El jugador usará los armarios como nodos de seguridad, modifican
 A (Estética): Genera una sensación de planificación táctica y alivio temporal al encontrar una ruta segura.
 
 Métricas a recoger:
-distancia media recorrida entre armarios;
 tiempo medio dentro del armario;
 porcentaje de usos de armario con enemigo cerca;
 muertes ocurridas cerca de armarios no usados;
@@ -38,13 +38,13 @@ D (Dinámica): La inmovilidad aumentará drásticamente la probabilidad de que e
 
 A (Estética): Castigo que refuerza la tensión.
 
-Métricas a recoger: % de eventos PlayerSpotted (cuando player entra en cono de visión) que ocurren mientras el jugador tiene el estado Tired == true frente a cuando está sano; Tiempo medio de supervivencia tras entrar en fatiga.
+Métricas a recoger: % de eventos PlayerSpotted (cuando player entra en cono de visión) que ocurren mientras el jugador tiene el estado Tired == true frente a cuando está sano; % medio de supervivencia tras entrar en fatiga.
 
 Hipótesis 4: Uso táctico de objetos
 M: El jugador dispone de objetos consumibles como píldora, reloj o caja.
 D: El jugador tenderá a usarlos en momentos de amenaza cercana o tras entrar en fatiga.
 A: Refuerza la sensación de supervivencia y toma de decisiones bajo presión.
-Métricas: porcentaje de objetos usados con enemigos en rango, tiempo entre detección y uso, tasa de supervivencia tras usar cada objeto, objetos no usados al morir.
+Métricas: porcentaje de objetos usados con enemigos en rango, tiempo entre detección y uso, objetos no usados al morir.
 
 B) Los Eventos de Telemetría
 Para validar esas hipótesis, necesitaremos los siguientes eventos:
@@ -57,24 +57,29 @@ PlayerState se registrará cada 0.5 segundos o 1 segundo, y también en momentos
 
 PlayerDeath (El jugador es alcanzado por un enemigo) Parámetros: posición y estado del jugador
 
-PlayerSpotted (El jugador entra en el cono de visión de un enemigo) Parámetros: 
-estado del jugador
-posición del jugador;
-ID del enemigo;
-distancia al enemigo;
-si el jugador estaba corriendo, andando, oculto o fatigado;
-tiempo desde el último HeartbeatAttempt;
-tiempo hasta muerte o escape.
+PlayerSpotted (El jugador entra en el cono de visión de un enemigo) Parámetros: ID del enemigo; estado del jugador; posición del jugador y enemigo;
+
+posicion jugador (muestreo cada 1s) parametro: position
+
+cambio de estado del jugador (corriendo, andando, oculto o fatigado) parametro: estado_jugador
+
+evento cercania a un enemigo (se mide con booleano que indica si esta cerca o no) parametro: bool cerca_enemigo
+evento cercacia a un armario (se mide con booleano que indica si esta cerca o no) parametro: bool cerca_armario
+tiempo desde el último HeartbeatAttempt parametro: tiempo
+tiempo hasta muerte o escape parametro: tiempo
+
+entrada al armario parametros: position armario, id armario
+salida del armario parametros: position armario, id armario
 
 HeartbeatAttempt (Cada vez que el jugador pulsa "Espacio" para el pulso) Parámetros: éxito/fallo, tamaño de la zona verde (o lo que es lo mismo "distancia del enemigo mas cercano")
 
-FatigueTriggered (El jugador acumula 3 fallos en el pulso) Parámetros: estado del jugador
+FatigueTriggered (El jugador acumula 3 fallos en el pulso) Parámetros: estado_jugador
 
 PlayerHidden (entrar en armario/caja) Parámetros: ID_escondite y tipo_escondite
 
 ItemPicked (Recogida de un objeto en el mapa) Parámetros: tipo_item
 
-ItemUsed (Uso de Píldora, Reloj, Caja) Parámetros: estado del jugador (fatigado, oculto), enemigos en rango.
+ItemUsed (Uso de Píldora, Reloj, Caja) Parámetros: tipo_item.
 
 **Todos los eventos tienen un evento base que nos indicará timestamp, idEvento, idSesion, tipoEvento y nivel**
 
