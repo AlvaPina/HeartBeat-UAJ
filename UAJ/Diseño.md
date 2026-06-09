@@ -1,6 +1,12 @@
-1. TELEMETRÍA
+**TELEMETRÍA HEARTBEAT**
 
-A) Posibles Hipótesis (Marco MDA)
+**DE QUE TRATA EL JUEGO?**
+Es un juego de sigilo y terror donde tienes que ir recorriendo un mapa resolviendo puzzles, escondiendote en armarios, usando objetos que encuentras por ahí y sobretodo manteniendo el ritmo de tu latido para no fatigarte. Os adjunto un vídeo para que podais ver de que trata el juego antes de leer todo esto.
+https://youtu.be/xJJZEVgAJT4?si=s21VC8QQ_mAdtz2K
+
+El objetivo de este proyecto será demostrar 4 hipótesis que consideramos interesantes además de mostrar de forma bonita y detallada mapas de calor y estadísticas/gráficas del juego
+
+A) **POSIBLES HIPOTESIS (Marco MDA)**
 Hipótesis 1 (Mecánica del Pulso bajo presión)
 
 M (Mecánica): La zona verde del minijuego del corazón se reduce en función de la proximidad del enemigo.
@@ -46,7 +52,7 @@ D: El jugador tenderá a usarlos en momentos de amenaza cercana o tras entrar en
 A: Refuerza la sensación de supervivencia y toma de decisiones bajo presión.
 Métricas: porcentaje de objetos usados con enemigos en rango, tiempo entre detección y uso, objetos no usados al morir.
 
-B) Los Eventos de Telemetría
+B) **EVENTOS DE LA TELEMETRÍA**
 Para validar esas hipótesis, necesitaremos los siguientes eventos:
 
 SessionStart / End (Inicio y fin de la ejecución del juego) Parámetros: duracion_sesion
