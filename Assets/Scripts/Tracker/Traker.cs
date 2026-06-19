@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine.SceneManagement;
 
 public class Traker : MonoBehaviour
 {
@@ -108,6 +109,6 @@ public class Traker : MonoBehaviour
 
     private int SafeGetNivelActual()
     {
-        return GameManager.Instance != null ? GameManager.Instance.scene : 0;
+        return UnityEngine.SceneManagement.SceneManager.GetActiveScene().buildIndex;
     }
 }
