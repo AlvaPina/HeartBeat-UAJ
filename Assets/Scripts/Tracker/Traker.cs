@@ -77,7 +77,7 @@ public class Traker : MonoBehaviour
 
         try
         {
-            TrackEvent(new EventoFinSesion(SafeGetNivelActual()));
+            TrackEvent(new EventoFinSesion(SafeGetNivelActual(), Time.realtimeSinceStartup));
             persistenceObject?.Flush();
         }
         catch (Exception ex)

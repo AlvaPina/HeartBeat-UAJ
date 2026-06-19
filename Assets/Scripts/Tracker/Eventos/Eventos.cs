@@ -1,42 +1,47 @@
 using System;
 using UnityEngine;
 
-public enum TipoMuerte
+public enum EstadoJugador
 {
-    Enemy,
-    Fall,
-    Trap,
-    Unknown
-}
-
-public enum TipoHabilidad
-{
-    DoubleJump,
-    Magic
-}
-
-public enum ContextoUso
-{
-    Exploracion,
-    Combate
+    Normal,
+    Corriendo,
+    Andando,
+    Oculto,
+    Fatigado
 }
 
 public enum TipoItem
 {
-    Heart,
-    Unknown
+    Pildora,
+    Caja,
+    Reloj,
+    Llave
+}
+
+public enum TipoEscondite
+{
+    Armario,
+    Caja
 }
 
 [Serializable]
 public class EventoInicioSesion : EventoBase
 {
-    public EventoInicioSesion(int nivel) : base(TipoEvento.SesionStart, nivel) { }
+    public EventoInicioSesion(int nivel) : base(TipoEvento.SessionStart, nivel) { }
 }
 
 [Serializable]
 public class EventoFinSesion : EventoBase
 {
-    public EventoFinSesion(int nivel) : base(TipoEvento.SesionEnd, nivel) { }
+    public float duracionSesion;
+
+    public EventoFinSesion(
+        int nivel,
+        float duracionSesion
+    ) : base(TipoEvento.SessionEnd, nivel)
+    {
+        this.duracionSesion = duracionSesion;
+    }
 }
 
 [Serializable]
@@ -48,98 +53,40 @@ public class EventoInicioNivel : EventoBase
 [Serializable]
 public class EventoNivelCompletado : EventoBase
 {
+    public float tiempoCompletado;
 
-    public EventoNivelCompletado(int nivel) : base(TipoEvento.LevelComplete, nivel)
+    public EventoNivelCompletado(
+        int nivel,
+        float tiempoCompletado
+    ) : base(TipoEvento.LevelComplete, nivel)
     {
-        
+        this.tiempoCompletado = tiempoCompletado;
     }
 }
 
 [Serializable]
-public class EventoNivelFallido : EventoBase
-{
-    public string motivo;
-
-    public EventoNivelFallido(int nivel, string motivo = "") : base(TipoEvento.LevelFail, nivel)
-    {
-        this.motivo = motivo;
-    }
-}
-
-[Serializable]
-public class EventoAtaque : EventoBase
+public class EventoEstadoJugador : EventoBase
 {
     public Vector3 posicion;
     public float velocidad;
-    public bool enAire;
+    public EstadoJugador estadoJugador;
+    public bool cercaEnemigo;
+    public bool cercaArmario;
 
-    public EventoAtaque(
+    public EventoEstadoJugador(
         int nivel,
         Vector3 posicion,
         float velocidad,
-        bool enAire
-    ) : base(TipoEvento.AttackPerformed, nivel)
+        EstadoJugador estadoJugador,
+        bool cercaEnemigo,
+        bool cercaArmario
+    ) : base(TipoEvento.PlayerState, nivel)
     {
         this.posicion = posicion;
         this.velocidad = velocidad;
-        this.enAire = enAire;
-    }
-}
-
-[Serializable]
-public class EventoInicioCombate : EventoBase
-{
-    public string combatAreaId;
-    public Vector3 posicionJugador;
-
-    public EventoInicioCombate(int nivel, string combatAreaId, Vector3 posicionJugador)
-        : base(TipoEvento.EnemyEncounterStart, nivel)
-    {
-        this.combatAreaId = combatAreaId;
-        this.posicionJugador = posicionJugador;
-    }
-}
-
-[Serializable]
-public class EventoFinCombate : EventoBase
-{
-    public string combatAreaId;
-    public Vector3 posicionJugador;
-    public bool huida;
-
-    public EventoFinCombate(
-        int nivel,
-        string combatAreaId,
-        Vector3 posicionJugador,
-        bool huida
-    ) : base(TipoEvento.EnemyEncounterEnd, nivel)
-    {
-        this.combatAreaId = combatAreaId;
-        this.posicionJugador = posicionJugador;
-        this.huida = huida;
-    }
-}
-
-[Serializable]
-public class EventoJugadorDañado : EventoBase
-{
-    public Vector3 posicion;
-    public int daño;
-    public string causa;
-    public int vidaRestante;
-
-    public EventoJugadorDañado(
-        int nivel,
-        Vector3 posicion,
-        int daño,
-        string causa,
-        int vidaRestante
-    ) : base(TipoEvento.PlayerDamaged, nivel)
-    {
-        this.posicion = posicion;
-        this.daño = daño;
-        this.causa = causa;
-        this.vidaRestante = vidaRestante;
+        this.estadoJugador = estadoJugador;
+        this.cercaEnemigo = cercaEnemigo;
+        this.cercaArmario = cercaArmario;
     }
 }
 
@@ -147,53 +94,93 @@ public class EventoJugadorDañado : EventoBase
 public class EventoJugadorMuere : EventoBase
 {
     public Vector3 posicion;
-    public TipoMuerte tipoMuerte;
+    public EstadoJugador estadoJugador;
 
     public EventoJugadorMuere(
         int nivel,
         Vector3 posicion,
-        TipoMuerte tipoMuerte
+        EstadoJugador estadoJugador
     ) : base(TipoEvento.PlayerDeath, nivel)
     {
         this.posicion = posicion;
-        this.tipoMuerte = tipoMuerte;
+        this.estadoJugador = estadoJugador;
     }
 }
 
 [Serializable]
-public class EventoJugadorRespawn : EventoBase
+public class EventoJugadorDetectado : EventoBase
 {
-    public float tiempoDesdeMuerte;
-    public Vector3 posicionRespawn;
+    public string idEnemigo;
+    public EstadoJugador estadoJugador;
+    public Vector3 posicionJugador;
+    public Vector3 posicionEnemigo;
 
-    public EventoJugadorRespawn(
+    public EventoJugadorDetectado(
         int nivel,
-        float tiempoDesdeMuerte,
-        Vector3 posicionRespawn
-    ) : base(TipoEvento.PlayerRespawn, nivel)
+        string idEnemigo,
+        EstadoJugador estadoJugador,
+        Vector3 posicionJugador,
+        Vector3 posicionEnemigo
+    ) : base(TipoEvento.PlayerSpotted, nivel)
     {
-        this.tiempoDesdeMuerte = tiempoDesdeMuerte;
-        this.posicionRespawn = posicionRespawn;
+        this.idEnemigo = idEnemigo;
+        this.estadoJugador = estadoJugador;
+        this.posicionJugador = posicionJugador;
+        this.posicionEnemigo = posicionEnemigo;
     }
 }
 
 [Serializable]
-public class EventoItemSpawneado : EventoBase
+public class EventoIntentoLatido : EventoBase
 {
-    public TipoItem tipoItem;
+    public bool exito;
+    public float tamañoZonaVerde;
+
+    public EventoIntentoLatido(
+        int nivel,
+        bool exito,
+        float tamañoZonaVerde
+    ) : base(TipoEvento.HeartbeatAttempt, nivel)
+    {
+        this.exito = exito;
+        this.tamañoZonaVerde = tamañoZonaVerde;
+    }
+}
+
+[Serializable]
+public class EventoFatigaActivada : EventoBase
+{
+    public EstadoJugador estadoJugador;
+
+    public EventoFatigaActivada(
+        int nivel,
+        EstadoJugador estadoJugador
+    ) : base(TipoEvento.FatigueTriggered, nivel)
+    {
+        this.estadoJugador = estadoJugador;
+    }
+}
+
+[Serializable]
+public class EventoJugadorOculto : EventoBase
+{
+    public string idEscondite;
+    public TipoEscondite tipoEscondite;
     public Vector3 posicion;
-    public string itemInstanceId;
+    public bool entrando;
 
-    public EventoItemSpawneado(
+    public EventoJugadorOculto(
         int nivel,
-        TipoItem tipoItem,
+        string idEscondite,
+        TipoEscondite tipoEscondite,
         Vector3 posicion,
-        string itemInstanceId
-    ) : base(TipoEvento.ItemSpawned, nivel)
+        bool entrando
+    ) : base(TipoEvento.PlayerHidden, nivel)
     {
-        this.tipoItem = tipoItem;
+        this.idEscondite = idEscondite;
+        this.tipoEscondite = tipoEscondite;
         this.posicion = posicion;
-        this.itemInstanceId = itemInstanceId;
+        this.entrando = entrando;
     }
 }
 
@@ -201,101 +188,26 @@ public class EventoItemSpawneado : EventoBase
 public class EventoItemRecogido : EventoBase
 {
     public TipoItem tipoItem;
-    public Vector3 posicion;
-    public string itemInstanceId;
 
     public EventoItemRecogido(
         int nivel,
-        TipoItem tipoItem,
-        Vector3 posicion,
-        string itemInstanceId
-    ) : base(TipoEvento.ItemCollected, nivel)
+        TipoItem tipoItem
+    ) : base(TipoEvento.ItemPicked, nivel)
     {
         this.tipoItem = tipoItem;
-        this.posicion = posicion;
-        this.itemInstanceId = itemInstanceId;
     }
 }
 
 [Serializable]
-public class EventoHabilidadUsada : EventoBase
+public class EventoItemUsado : EventoBase
 {
-    public TipoHabilidad tipoHabilidad;
-    public ContextoUso contexto;
-    public Vector3 posicion;
+    public TipoItem tipoItem;
 
-    public EventoHabilidadUsada(
+    public EventoItemUsado(
         int nivel,
-        TipoHabilidad tipoHabilidad,
-        ContextoUso contexto,
-        Vector3 posicion
-    ) : base(TipoEvento.AbilityUsed, nivel)
+        TipoItem tipoItem
+    ) : base(TipoEvento.ItemUsed, nivel)
     {
-        this.tipoHabilidad = tipoHabilidad;
-        this.contexto = contexto;
-        this.posicion = posicion;
-    }
-}
-
-[Serializable]
-public class EventoHabilidadDesbloqueada : EventoBase
-{
-    public TipoHabilidad tipoHabilidad;
-
-    public EventoHabilidadDesbloqueada(int nivel, TipoHabilidad tipoHabilidad)
-        : base(TipoEvento.AbilityUnlocked, nivel)
-    {
-        this.tipoHabilidad = tipoHabilidad;
-    }
-}
-
-[Serializable]
-public class EventoMagiaAcierto : EventoBase
-{
-    public Vector3 posicionJugador;
-    public Vector3 posicionImpacto;
-    public string objetivo;
-
-    public EventoMagiaAcierto(
-        int nivel,
-        Vector3 posicionJugador,
-        Vector3 posicionImpacto,
-        string objetivo
-    ) : base(TipoEvento.MagicProjectileHit, nivel)
-    {
-        this.posicionJugador = posicionJugador;
-        this.posicionImpacto = posicionImpacto;
-        this.objetivo = objetivo;
-    }
-}
-
-[Serializable]
-public class EventoMagiaFallo : EventoBase
-{
-    public Vector3 posicionJugador;
-    public string motivo;
-
-    public EventoMagiaFallo(
-        int nivel,
-        Vector3 posicionJugador,
-        string motivo = ""
-    ) : base(TipoEvento.MagicProjectileMiss, nivel)
-    {
-        this.posicionJugador = posicionJugador;
-        this.motivo = motivo;
-    }
-}
-
-[Serializable]
-public class EventoPosicionJugador : EventoBase
-{
-    public Vector3 posicion;
-    public float velocidad;
-
-    public EventoPosicionJugador(int nivel, Vector3 posicion, float velocidad)
-        : base(TipoEvento.PlayerPositionSample, nivel)
-    {
-        this.posicion = posicion;
-        this.velocidad = velocidad;
+        this.tipoItem = tipoItem;
     }
 }
