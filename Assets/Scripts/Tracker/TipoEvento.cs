@@ -4,27 +4,16 @@ using UnityEngine;
 
 public enum TipoEvento
 {
-    SesionStart,//evento Base
-    SesionEnd,//evento Base
+    SessionStart,
+    SessionEnd,
     LevelStart,
     LevelComplete,
-    LevelFail,
-
-    AttackPerformed,
-    EnemyEncounterStart,//evento Base
-    EnemyEncounterEnd,//evento Base
-
-    PlayerDamaged,
+    PlayerState,
     PlayerDeath,
-    PlayerRespawn,//evento Base
-
-    ItemSpawned,//evento Base
-    ItemCollected,//evento Base
-
-    AbilityUsed,//evento Base
-    AbilityUnlocked,//evento Base
-    MagicProjectileHit,//evento Base
-    MagicProjectileMiss,//evento Base
-
-    PlayerPositionSample
+    PlayerSpotted,
+    HeartbeatAttempt,
+    FatigueTriggered,
+    PlayerHidden,
+    ItemPicked,
+    ItemUsed
 }
