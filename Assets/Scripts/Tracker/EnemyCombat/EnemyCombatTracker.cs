@@ -1,5 +1,6 @@
 using System;
 using UnityEngine;
+using UnityEngine.SceneManagement;
 
 [DisallowMultipleComponent]
 public class EnemyCombatTracker : MonoBehaviour
@@ -85,16 +86,9 @@ public class EnemyCombatTracker : MonoBehaviour
 
     private void RefreshPlayerReference()
     {
-        if (GameManager.Instance != null && GameManager.Instance._myPlayer != null)
+        if (GameManager.Player != null)
         {
-            playerTransform = GameManager.Instance._myPlayer.transform;
-            return;
-        }
-
-        Player_Life_Component playerLife = FindObjectOfType<Player_Life_Component>();
-        if (playerLife != null)
-        {
-            playerTransform = playerLife.transform;
+            playerTransform = GameManager.Player.transform;
         }
     }
 
@@ -131,7 +125,7 @@ public class EnemyCombatTracker : MonoBehaviour
 
     private int GetNivelActual()
     {
-        return GameManager.Instance != null ? GameManager.Instance.scene : 0;
+        return SceneManager.GetActiveScene().buildIndex;
     }
 
     private Vector3 GetPlayerPosition()
