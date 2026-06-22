@@ -67,30 +67,49 @@ public class HeartDetection : MonoBehaviour
     {
         if (!_hasPressed && _canPress) //Si ya se ha presionado espacio en esa vuelta no hace nada
         {
-
-            if (!_inSafeZone) //Si no esta en la zona segura
+            if (!_inSafeZone) //Si no esta en la zona segura (FALLO POR PULSAR MAL)
             {
+                // Telemetría de Fallo
+                Traker.Instance?.TrackEvent(new EventoIntentoLatido(
+                    UnityEngine.SceneManagement.SceneManager.GetActiveScene().buildIndex,
+                    false, // exito = false
+                    ObtenerTamañoZonaVerde()
+                ));
+
                 _fails++; //Aumenta en uno los fallos
                 _failSound.volume = GameManager.Instance.getSFX * _beepVolume / 10;
                 _failSound.Play();
                 _warning.SetActive(true);
 
-                if (_fails == 1)
-                    _currentImage.sprite = _brokenHeart1;
-                if (_fails == 2)
-                    _currentImage.sprite = _brokenHeart2;
-                if (_fails == 3)
-                    _currentImage.sprite = _brokenHeart3;
+                if (_fails == 1) _currentImage.sprite = _brokenHeart1;
+                if (_fails == 2) _currentImage.sprite = _brokenHeart2;
+                if (_fails == 3) _currentImage.sprite = _brokenHeart3;
                 _hasPressed = true; //Se activa el bool de pulsado
             }
-            else if (_fails < 3)
+            else if (_fails < 3) // (ACIerto)
             {
+                // Telemetría de Acierto
+                Traker.Instance?.TrackEvent(new EventoIntentoLatido(
+                    UnityEngine.SceneManagement.SceneManager.GetActiveScene().buildIndex,
+                    true,  // exito = true
+                    ObtenerTamañoZonaVerde()
+                ));
+
                 _hasPressed = true; //Se activa el bool de pulsado
                 _currentImage.sprite = _safeHeart;
-                 
             }
         }
-        
+    }
+
+    // Método auxiliar para obtener el tamaño de la zona verde
+    private float ObtenerTamañoZonaVerde()
+    {
+        RectTransform rect = _safeZone.GetComponent<RectTransform>();
+        if (rect != null)
+        {
+            return rect.rect.width * rect.localScale.x; // Calcula el tamaño real en pantalla
+        }
+        return _safeZone.transform.localScale.x; // Por si acaso no usara RectTransform
     }
 
     public void ResetValues() //Al haber dado una vuelta se activa este metodo para restablecer valores al estado original
@@ -120,6 +139,12 @@ public class HeartDetection : MonoBehaviour
 
             if (!_hasPressed && !_pillEffects) //Si no se a presionado el espacio quiere decir que se ha saltado la zona segura y por tanto es un fallo
             {
+                Traker.Instance?.TrackEvent(new EventoIntentoLatido(
+                UnityEngine.SceneManagement.SceneManager.GetActiveScene().buildIndex,
+                false, // exito = false
+                ObtenerTamañoZonaVerde()
+                ));
+                
                 _fails++;
                 _failSound.volume = GameManager.Instance.getSFX * _beepVolume / 10;
                 _failSound.Play();

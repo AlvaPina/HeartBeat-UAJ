@@ -227,6 +227,17 @@ public class VisionCone : MonoBehaviour
         if (collision.tag == "Player")
         {
             playerFound = true;
+
+            EstadoJugador estado = GameManager.PlayerStates.Tired ? EstadoJugador.Fatigado :
+                       (GameManager.PlayerStates.Hidden || GameManager.PlayerStates.IsBox ? EstadoJugador.Oculto : EstadoJugador.Normal);
+
+            Traker.Instance?.TrackEvent(new EventoJugadorDetectado(
+                UnityEngine.SceneManagement.SceneManager.GetActiveScene().buildIndex,
+                _enemyAI.gameObject.name, // ID del enemigo (ej: "BlueEnemy")
+                estado,
+                collision.transform.position, // Posición Jugador
+                _enemyAI.transform.position   // Posición Enemigo
+            ));
         } 
         else if (_enemyAI.GetCloset == null && collision.gameObject.GetComponent<ClosetComponent>() != null)
         {

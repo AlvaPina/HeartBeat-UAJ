@@ -194,6 +194,11 @@ public class PlayerStates : MonoBehaviour
     }
     public void SweatCancelMovement() // fatiga al fallar 3 veces
     {
+        Traker.Instance?.TrackEvent(new EventoFatigaActivada(
+            UnityEngine.SceneManagement.SceneManager.GetActiveScene().buildIndex,
+            EstadoJugador.Fatigado
+        ));
+
         _tired = true;
         _playerAnimator.SetBool("Sweat", true);
         PlayTiredAudio();

@@ -78,6 +78,16 @@ public class GameManager : MonoBehaviour
 
     public void GameOver()
     {
+        // Calculamos si estaba normal, fatigado u oculto
+        EstadoJugador estado = GameManager.PlayerStates.Tired ? EstadoJugador.Fatigado :
+                              (GameManager.PlayerStates.Hidden || GameManager.PlayerStates.IsBox ? EstadoJugador.Oculto : EstadoJugador.Normal);
+
+        Traker.Instance?.TrackEvent(new EventoJugadorMuere(
+            SceneManager.GetActiveScene().buildIndex,
+            _player.transform.position,
+            estado
+        ));
+
         GetComponent<PauseInput>().enabled = false;
         GameObject canvas = GameObject.Find("Canvas");
         _player.SetActive(false);
@@ -282,5 +292,7 @@ public class GameManager : MonoBehaviour
         _isInPause = false;
         _amountOfChildren = _enemyGroup.transform.childCount;
         _audioMusic = _audioSFX = 1;
+
+        Traker.Instance?.TrackEvent(new EventoInicioNivel(SceneManager.GetActiveScene().buildIndex));
     }
 }
