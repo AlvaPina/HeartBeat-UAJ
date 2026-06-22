@@ -74,11 +74,15 @@ public class PlayerStates : MonoBehaviour
         _inventory.EliminaObjeto(3);
         _clock = Instantiate(_clockPrefab, _player.transform.position, new Quaternion(0, 0, 0, 0));
         _clock.GetComponent<ClockDistractionComponent>().SetInstance = true;
+
+        Traker.Instance?.TrackEvent(new EventoItemUsado(UnityEngine.SceneManagement.SceneManager.GetActiveScene().buildIndex, TipoItem.Reloj));
     }
     public void EnterCloset()
     {
         _playerInCloset.SetActive(true);
         _hidden = true;
+
+        Traker.Instance?.TrackEvent(new EventoJugadorOculto(UnityEngine.SceneManagement.SceneManager.GetActiveScene().buildIndex, "Armario_X", TipoEscondite.Armario, transform.position, true));
     }
     public void ExitCloset()
     {
@@ -99,6 +103,9 @@ public class PlayerStates : MonoBehaviour
         _parentBoxInstance.transform.position = _player.transform.position;
         _boxInstance = Instantiate(_boxPrefab, _parentBoxInstance.transform);
         _isBox = true;
+
+        Traker.Instance?.TrackEvent(new EventoItemUsado(UnityEngine.SceneManagement.SceneManager.GetActiveScene().buildIndex, TipoItem.Caja));
+        Traker.Instance?.TrackEvent(new EventoJugadorOculto(UnityEngine.SceneManagement.SceneManager.GetActiveScene().buildIndex, "Caja_Movil", TipoEscondite.Caja, transform.position, true));
     }
     public void ExitBox() // player sale de caja
     {
@@ -127,6 +134,8 @@ public class PlayerStates : MonoBehaviour
             //quitamos pasti del inventario
             _inventory._pildoraEquipado = false;
             _inventory.EliminaObjeto(1);
+
+            Traker.Instance?.TrackEvent(new EventoItemUsado(UnityEngine.SceneManagement.SceneManager.GetActiveScene().buildIndex, TipoItem.Pildora));
         }
     }
 
