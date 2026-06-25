@@ -1,0 +1,790 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Dashboard Telemetría Heartbeat</title>
+  <style>
+    :root {
+      --bg: #090b12;
+      --panel: rgba(19, 23, 35, 0.86);
+      --panel-2: rgba(28, 34, 52, 0.88);
+      --panel-3: rgba(255, 255, 255, 0.045);
+      --line: rgba(255,255,255,0.11);
+      --text: #f2f4fb;
+      --muted: #aeb7c9;
+      --accent: #ff4d6d;
+      --accent-2: #49d6b4;
+      --warn: #ffba5a;
+      --bad: #ff6b83;
+      --good: #73e2a7;
+      --info: #8fb4ff;
+      --shadow: 0 20px 60px rgba(0,0,0,0.33);
+      --radius: 22px;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+      color: var(--text);
+      background:
+        radial-gradient(circle at 10% 0%, rgba(255, 77, 109, 0.20), transparent 28%),
+        radial-gradient(circle at 90% 4%, rgba(73, 214, 180, 0.13), transparent 26%),
+        radial-gradient(circle at 50% 100%, rgba(143, 180, 255, 0.10), transparent 32%),
+        linear-gradient(180deg, #07090f 0%, #101622 100%);
+      min-height: 100vh;
+    }
+
+    .wrap { max-width: 1360px; margin: 0 auto; padding: 28px; }
+
+    .hero {
+      border: 1px solid var(--line);
+      border-radius: 30px;
+      background: linear-gradient(135deg, rgba(255, 77, 109, 0.16), rgba(73, 214, 180, 0.08)), rgba(9, 11, 18, 0.65);
+      box-shadow: var(--shadow);
+      padding: 30px;
+      overflow: hidden;
+      position: relative;
+    }
+
+    .hero:after {
+      content: "";
+      position: absolute;
+      width: 260px;
+      height: 260px;
+      right: -70px;
+      bottom: -90px;
+      border-radius: 50%;
+      background: radial-gradient(circle, rgba(255,255,255,0.11), transparent 68%);
+      pointer-events: none;
+    }
+
+    .eyebrow { color: var(--accent-2); text-transform: uppercase; font-weight: 850; font-size: 12px; letter-spacing: .15em; }
+    h1 { font-size: clamp(34px, 5vw, 58px); line-height: 0.98; margin: 10px 0 14px; max-width: 980px; }
+    .lead { color: var(--muted); line-height: 1.65; max-width: 1020px; margin: 0; font-size: 16px; }
+    code { background: rgba(255,255,255,0.09); padding: 2px 7px; border-radius: 8px; color: #f8d7df; }
+
+    .drop-zone {
+      margin-top: 22px;
+      border: 2px dashed rgba(255, 77, 109, 0.46);
+      border-radius: 24px;
+      background: rgba(8, 10, 18, 0.48);
+      padding: 18px;
+      transition: 0.18s ease;
+      position: relative;
+      z-index: 1;
+    }
+
+    .drop-zone.dragover { border-color: var(--accent-2); background: rgba(73,214,180,0.10); transform: translateY(-1px); }
+    .drop-grid { display: grid; grid-template-columns: 1fr auto; gap: 16px; align-items: center; }
+    .drop-title { font-weight: 850; font-size: 18px; margin-bottom: 7px; }
+    .drop-help { color: var(--muted); line-height: 1.55; font-size: 14px; }
+    .controls { display: flex; flex-wrap: wrap; gap: 10px; justify-content: flex-end; }
+    .hidden { display: none !important; }
+
+    .btn, select {
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      background: linear-gradient(135deg, rgba(255,77,109,0.20), rgba(73,214,180,0.13));
+      color: var(--text);
+      padding: 12px 16px;
+      font-weight: 750;
+      cursor: pointer;
+    }
+
+    select { background-color: #151b29; min-width: 170px; }
+    .status { color: var(--muted); font-size: 13px; margin-top: 10px; min-height: 18px; }
+    .status.ok { color: var(--good); }
+    .status.error { color: var(--bad); }
+
+    .kpi-grid { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 14px; margin-top: 24px; }
+    .kpi { background: rgba(10, 13, 23, 0.58); border: 1px solid var(--line); border-radius: 20px; padding: 16px; min-height: 116px; }
+    .kpi .label { color: var(--muted); font-size: 13px; margin-bottom: 9px; }
+    .kpi .value { font-size: 29px; font-weight: 900; letter-spacing: -0.03em; }
+    .kpi .sub { color: var(--muted); font-size: 13px; line-height: 1.45; margin-top: 8px; }
+
+    .grid { display: grid; grid-template-columns: 1.2fr 1fr; gap: 18px; margin-top: 18px; }
+    .grid-3 { display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 18px; margin-top: 18px; }
+    .panel { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow); padding: 22px; backdrop-filter: blur(8px); }
+    .panel h2 { margin: 0 0 14px; font-size: 22px; }
+    .panel p { color: var(--muted); line-height: 1.65; }
+    .panel small { color: var(--muted); }
+
+    .hyp-grid { display: grid; grid-template-columns: repeat(4, minmax(0,1fr)); gap: 14px; margin-top: 18px; }
+    .hyp-card { background: var(--panel); border: 1px solid var(--line); border-radius: 22px; padding: 18px; box-shadow: var(--shadow); min-height: 236px; }
+    .hyp-title { font-weight: 900; margin-bottom: 12px; font-size: 17px; }
+    .badge { display: inline-flex; align-items: center; gap: 7px; border-radius: 999px; padding: 7px 10px; font-size: 12px; font-weight: 850; border: 1px solid var(--line); text-transform: uppercase; letter-spacing: .04em; }
+    .badge.validada { color: #09130d; background: var(--good); }
+    .badge.parcial { color: #161006; background: var(--warn); }
+    .badge.no_validada { color: #18060a; background: var(--bad); }
+    .badge.pendiente { color: #06101e; background: var(--info); }
+    .hyp-metric { font-size: 30px; font-weight: 900; margin: 15px 0 4px; }
+    .hyp-label { color: var(--muted); font-size: 12px; min-height: 30px; }
+    .hyp-card p { margin: 12px 0 0; font-size: 14px; }
+
+    .mini-grid { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 12px; }
+    .mini-card { background: var(--panel-2); border: 1px solid var(--line); border-radius: 18px; padding: 14px; min-height: 94px; }
+    .mini-card .k { color: var(--muted); font-size: 13px; }
+    .mini-card .v { font-size: 24px; font-weight: 900; margin-top: 5px; }
+    .mini-card .s { color: var(--muted); font-size: 12px; margin-top: 5px; }
+
+    .bars { display: grid; gap: 11px; }
+    .bar-row { display: grid; grid-template-columns: 180px 1fr 76px; gap: 12px; align-items: center; }
+    .bar-label { color: var(--muted); font-size: 13px; }
+    .bar-track { height: 12px; background: rgba(255,255,255,0.07); border-radius: 999px; overflow: hidden; }
+    .bar-fill { height: 100%; border-radius: 999px; background: linear-gradient(90deg, var(--accent), var(--warn)); width: 0%; }
+    .bar-text { text-align: right; font-weight: 800; font-size: 13px; }
+
+    table { width: 100%; border-collapse: collapse; }
+    th, td { text-align: left; padding: 11px 9px; border-bottom: 1px solid var(--line); font-size: 14px; vertical-align: top; }
+    th { color: #ced6e9; font-weight: 850; }
+    td { color: var(--text); }
+    .muted { color: var(--muted); }
+    .table-wrap { overflow-x: auto; }
+
+    .canvas-wrap { position: relative; background: #070910; border: 1px solid var(--line); border-radius: 20px; overflow: hidden; min-height: 480px; }
+    canvas { display: block; width: 100%; height: 480px; }
+    .map-empty { position: absolute; inset: 0; display: grid; place-items: center; color: var(--muted); text-align: center; padding: 24px; pointer-events: none; }
+    .map-controls { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; margin-bottom: 14px; }
+    .legend { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 10px; color: var(--muted); font-size: 13px; }
+    .legend span { display: inline-flex; align-items: center; gap: 7px; }
+    .dot { width: 11px; height: 11px; border-radius: 50%; display: inline-block; }
+    .dot.route { background: #8fb4ff; }
+    .dot.death { background: #ff4d6d; }
+    .dot.spotted { background: #ffba5a; }
+    .dot.hideout { background: #49d6b4; }
+
+    .pill-row { display: flex; flex-wrap: wrap; gap: 10px; }
+    .pill { background: var(--panel-2); border: 1px solid var(--line); border-radius: 999px; padding: 9px 12px; display: inline-flex; gap: 9px; align-items: center; }
+    .pill span { color: var(--muted); font-size: 12px; }
+    .pill strong { font-size: 13px; }
+
+    ul.notes { margin: 8px 0 0 20px; color: var(--muted); line-height: 1.7; }
+    .footer { color: var(--muted); text-align: center; padding: 24px 0 4px; font-size: 13px; }
+
+    @media (max-width: 1180px) {
+      .kpi-grid, .hyp-grid, .grid-3 { grid-template-columns: repeat(2, minmax(0,1fr)); }
+      .grid { grid-template-columns: 1fr; }
+    }
+
+    @media (max-width: 760px) {
+      .wrap { padding: 16px; }
+      .kpi-grid, .hyp-grid, .grid-3, .mini-grid, .drop-grid { grid-template-columns: 1fr; }
+      .controls { justify-content: flex-start; }
+      .bar-row { grid-template-columns: 1fr; gap: 6px; }
+      .bar-text { text-align: left; }
+      canvas { height: 390px; }
+      .canvas-wrap { min-height: 390px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <section class="hero">
+      <div class="eyebrow">Telemetry · Heartbeat</div>
+      <h1>Informe de pulso, sigilo, fatiga y supervivencia</h1>
+      <p class="lead" id="leadText">
+        Carga el JSON generado por <code>analyze_telemetry.py</code>. El panel está adaptado a los eventos C# del proyecto: <code>HeartbeatAttempt</code>, <code>PlayerHidden</code>, <code>PlayerSpotted</code>, <code>FatigueTriggered</code>, <code>ItemPicked</code> e <code>ItemUsed</code>.
+      </p>
+
+      <div class="drop-zone" id="dropZone">
+        <div class="drop-grid">
+          <div>
+            <div class="drop-title">Carga el resumen del analizador</div>
+            <div class="drop-help">
+              Ejecuta, por ejemplo: <code>python analyze_telemetry.py ./logs --json-out resumen_telemetria.json --pretty</code><br />
+              Después arrastra <code>resumen_telemetria.json</code> aquí o selecciónalo manualmente.
+            </div>
+            <div class="status" id="statusText">Todavía no hay ningún archivo cargado.</div>
+          </div>
+          <div class="controls">
+            <input type="file" id="fileInput" accept=".json,application/json" class="hidden" />
+            <button class="btn" id="pickButton" type="button">Seleccionar JSON</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="kpi-grid">
+        <div class="kpi"><div class="label">Eventos totales</div><div class="value" id="kpiEvents">—</div><div class="sub" id="kpiEventsSub">Carga un archivo para empezar.</div></div>
+        <div class="kpi"><div class="label">Sesiones</div><div class="value" id="kpiSessions">—</div><div class="sub" id="kpiSessionsSub">Duración media: —</div></div>
+        <div class="kpi"><div class="label">Cobertura</div><div class="value" id="kpiCoverage">—</div><div class="sub" id="kpiCoverageSub">Eventos requeridos presentes.</div></div>
+        <div class="kpi"><div class="label">Fallos de pulso</div><div class="value" id="kpiHeartbeatFail">—</div><div class="sub" id="kpiHeartbeatSub">Intentos registrados: —</div></div>
+        <div class="kpi"><div class="label">Detecciones en fatiga</div><div class="value" id="kpiFatigueSpotted">—</div><div class="sub" id="kpiFatigueSub">PlayerSpotted con estado Fatigado.</div></div>
+      </div>
+    </section>
+
+    <section class="hyp-grid" id="hypothesesGrid">
+      <div class="hyp-card"><div class="hyp-title">Hipótesis 1</div><span class="badge pendiente">Pendiente</span><div class="hyp-metric">—</div><div class="hyp-label">Pulso bajo presión</div><p>Carga datos para obtener conclusión.</p></div>
+      <div class="hyp-card"><div class="hyp-title">Hipótesis 2</div><span class="badge pendiente">Pendiente</span><div class="hyp-metric">—</div><div class="hyp-label">Uso táctico de armarios</div><p>Carga datos para obtener conclusión.</p></div>
+      <div class="hyp-card"><div class="hyp-title">Hipótesis 3</div><span class="badge pendiente">Pendiente</span><div class="hyp-metric">—</div><div class="hyp-label">Fatiga como castigo</div><p>Carga datos para obtener conclusión.</p></div>
+      <div class="hyp-card"><div class="hyp-title">Hipótesis 4</div><span class="badge pendiente">Pendiente</span><div class="hyp-metric">—</div><div class="hyp-label">Objetos bajo amenaza</div><p>Carga datos para obtener conclusión.</p></div>
+    </section>
+
+    <section class="grid">
+      <div class="panel">
+        <h2>Relación entre zona verde y fallos de pulso</h2>
+        <p style="margin-top:0;">La zona verde se usa como proxy de distancia/presión, tal como está planteado en el diseño. Si más adelante guardáis distancia real al enemigo, esta gráfica se puede cruzar directamente con esa distancia.</p>
+        <div class="bars" id="heartbeatBars"></div>
+      </div>
+      <div class="panel">
+        <h2>Resumen de pulso</h2>
+        <div class="mini-grid">
+          <div class="mini-card"><div class="k">Intentos</div><div class="v" id="hbAttempts">—</div></div>
+          <div class="mini-card"><div class="k">Fallos</div><div class="v" id="hbFails">—</div></div>
+          <div class="mini-card"><div class="k">Zona media en éxito</div><div class="v" id="hbAvgSuccess">—</div></div>
+          <div class="mini-card"><div class="k">Zona media en fallo</div><div class="v" id="hbAvgFail">—</div></div>
+        </div>
+        <div class="pill-row" style="margin-top:14px;" id="hbPills"></div>
+      </div>
+    </section>
+
+    <section class="grid">
+      <div class="panel">
+        <h2>Mapa de calor y recorrido</h2>
+        <div class="map-controls">
+          <select id="mapType">
+            <option value="route">Recorrido del jugador</option>
+            <option value="death">Muertes</option>
+            <option value="spotted">PlayerSpotted</option>
+            <option value="hideout">Armarios/cajas usados</option>
+          </select>
+          <select id="mapLevel"><option value="all">Todos los niveles</option></select>
+        </div>
+        <div class="canvas-wrap">
+          <canvas id="heatCanvas" width="980" height="520"></canvas>
+          <div class="map-empty" id="mapEmpty">Carga un JSON para dibujar mapas de calor.</div>
+        </div>
+        <div class="legend">
+          <span><i class="dot route"></i>Recorrido</span>
+          <span><i class="dot death"></i>Muertes</span>
+          <span><i class="dot spotted"></i>Detecciones</span>
+          <span><i class="dot hideout"></i>Escondites</span>
+        </div>
+      </div>
+      <div class="panel">
+        <h2>Progresión por nivel</h2>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Nivel</th><th>Starts</th><th>Completados</th><th>Muertes</th><th>Spotted</th><th>Fatiga</th></tr></thead>
+            <tbody id="levelsTable"><tr><td colspan="6" class="muted">Sin datos todavía.</td></tr></tbody>
+          </table>
+        </div>
+        <h2 style="margin-top:20px;">Tipos de evento</h2>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Evento</th><th>Conteo</th></tr></thead>
+            <tbody id="eventCountsTable"><tr><td colspan="2" class="muted">Sin datos todavía.</td></tr></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <section class="grid-3">
+      <div class="panel">
+        <h2>Armarios y escondites</h2>
+        <div class="mini-grid">
+          <div class="mini-card"><div class="k">Entradas</div><div class="v" id="hideEntries">—</div></div>
+          <div class="mini-card"><div class="k">Tiempo medio dentro</div><div class="v" id="hideAvgTime">—</div></div>
+          <div class="mini-card"><div class="k">Con enemigo cerca</div><div class="v" id="hideNearEnemy">—</div></div>
+          <div class="mini-card"><div class="k">Tras PlayerSpotted</div><div class="v" id="hideAfterSpotted">—</div></div>
+        </div>
+        <div class="table-wrap" style="margin-top:14px;">
+          <table>
+            <thead><tr><th>ID</th><th>Tipo</th><th>Entradas</th><th>Media</th></tr></thead>
+            <tbody id="hideoutsTable"><tr><td colspan="4" class="muted">Sin datos todavía.</td></tr></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="panel">
+        <h2>Fatiga</h2>
+        <div class="mini-grid">
+          <div class="mini-card"><div class="k">FatigueTriggered</div><div class="v" id="fatigueEvents">—</div></div>
+          <div class="mini-card"><div class="k">Spotted en fatiga</div><div class="v" id="fatigueSpotted">—</div></div>
+          <div class="mini-card"><div class="k">Supervivencia tras fatiga</div><div class="v" id="fatigueSurvival">—</div></div>
+          <div class="mini-card"><div class="k">Media hasta muerte</div><div class="v" id="fatigueDeathTime">—</div></div>
+        </div>
+        <div class="table-wrap" style="margin-top:14px;">
+          <table>
+            <thead><tr><th>Estado en PlayerSpotted</th><th>Conteo</th></tr></thead>
+            <tbody id="spottedByStateTable"><tr><td colspan="2" class="muted">Sin datos todavía.</td></tr></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="panel">
+        <h2>Objetos</h2>
+        <div class="mini-grid">
+          <div class="mini-card"><div class="k">Recogidos</div><div class="v" id="itemsPicked">—</div></div>
+          <div class="mini-card"><div class="k">Usados</div><div class="v" id="itemsUsed">—</div></div>
+          <div class="mini-card"><div class="k">Usados con enemigo cerca</div><div class="v" id="itemsNearEnemy">—</div></div>
+          <div class="mini-card"><div class="k">No usados al morir</div><div class="v" id="itemsUnusedAtDeath">—</div></div>
+        </div>
+        <div class="table-wrap" style="margin-top:14px;">
+          <table>
+            <thead><tr><th>Objeto</th><th>Recogido</th><th>Usado</th><th>No usado al morir</th></tr></thead>
+            <tbody id="itemsTable"><tr><td colspan="4" class="muted">Sin datos todavía.</td></tr></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <section class="grid">
+      <div class="panel">
+        <h2>Sesiones</h2>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Sesión</th><th>Duración</th><th>Eventos</th><th>Muertes</th><th>Spotted</th><th>Fatiga</th><th>Objetos</th></tr></thead>
+            <tbody id="sessionsTable"><tr><td colspan="7" class="muted">Sin datos todavía.</td></tr></tbody>
+          </table>
+        </div>
+      </div>
+      <div class="panel">
+        <h2>Calidad de datos</h2>
+        <p id="qualityIntro" style="margin-top:0;">Aquí aparecerán las métricas inferidas, avisos y mejoras recomendadas para que el diseño quede cerrado.</p>
+        <div class="pill-row" id="qualityPills"></div>
+        <h3>Avisos</h3>
+        <ul class="notes" id="warningsList"><li>Carga un JSON para ver avisos.</li></ul>
+        <h3>Mejoras recomendadas</h3>
+        <ul class="notes" id="suggestionsList"><li>Carga un JSON para ver sugerencias.</li></ul>
+      </div>
+    </section>
+
+    <div class="footer" id="footerText">Dashboard local sin librerías externas · preparado para el informe final de telemetría</div>
+  </div>
+
+  <script>
+    const $ = (id) => document.getElementById(id);
+    const fileInput = $('fileInput');
+    const pickButton = $('pickButton');
+    const dropZone = $('dropZone');
+    const statusText = $('statusText');
+    const mapType = $('mapType');
+    const mapLevel = $('mapLevel');
+    const canvas = $('heatCanvas');
+    const ctx = canvas.getContext('2d');
+    let currentReport = null;
+
+    pickButton.addEventListener('click', () => fileInput.click());
+    fileInput.addEventListener('change', (event) => {
+      const file = event.target.files?.[0];
+      if (file) handleFile(file);
+      fileInput.value = '';
+    });
+
+    ['dragenter', 'dragover'].forEach(evt => dropZone.addEventListener(evt, (event) => {
+      event.preventDefault();
+      dropZone.classList.add('dragover');
+    }));
+    ['dragleave', 'drop'].forEach(evt => dropZone.addEventListener(evt, (event) => {
+      event.preventDefault();
+      dropZone.classList.remove('dragover');
+    }));
+    dropZone.addEventListener('drop', (event) => {
+      const file = event.dataTransfer?.files?.[0];
+      if (file) handleFile(file);
+    });
+    mapType.addEventListener('change', drawMap);
+    mapLevel.addEventListener('change', drawMap);
+    window.addEventListener('resize', drawMap);
+
+    function setStatus(message, type = '') {
+      statusText.textContent = message;
+      statusText.className = `status ${type}`.trim();
+    }
+
+    function fmtInt(value) {
+      if (value === null || value === undefined || Number.isNaN(Number(value))) return '—';
+      return new Intl.NumberFormat('es-ES').format(Number(value));
+    }
+
+    function fmtFloat(value, digits = 2) {
+      if (value === null || value === undefined || Number.isNaN(Number(value))) return '—';
+      return Number(value).toFixed(digits);
+    }
+
+    function fmtPct(value, digits = 1) {
+      if (value === null || value === undefined || Number.isNaN(Number(value))) return '—';
+      return `${Number(value).toFixed(digits)}%`;
+    }
+
+    function fmtDurationMs(ms) {
+      if (ms === null || ms === undefined || Number.isNaN(Number(ms))) return '—';
+      const totalSeconds = Number(ms) / 1000;
+      if (totalSeconds < 60) return `${totalSeconds.toFixed(1)} s`;
+      const minutes = Math.floor(totalSeconds / 60);
+      const seconds = Math.round(totalSeconds % 60);
+      return `${minutes} min ${seconds.toString().padStart(2, '0')} s`;
+    }
+
+    function shortId(id) {
+      const text = String(id || 'sin_id');
+      return text.length > 13 ? `${text.slice(0, 8)}…${text.slice(-4)}` : text;
+    }
+
+    function escapeHtml(value) {
+      return String(value ?? '')
+        .replaceAll('&', '&amp;')
+        .replaceAll('<', '&lt;')
+        .replaceAll('>', '&gt;')
+        .replaceAll('"', '&quot;')
+        .replaceAll("'", '&#39;');
+    }
+
+    async function handleFile(file) {
+      if (!file.name.toLowerCase().endsWith('.json')) {
+        setStatus('Solo se admite el JSON de salida del analizador.', 'error');
+        return;
+      }
+      try {
+        const text = await file.text();
+        const data = JSON.parse(text);
+        renderReport(data, file.name);
+      } catch (error) {
+        console.error(error);
+        setStatus(`No se pudo leer el JSON: ${error.message}`, 'error');
+      }
+    }
+
+    function renderReport(report, fileName = 'archivo cargado') {
+      if (report?.schema_version !== 'heartbeat_telemetry_report_v1') {
+        throw new Error('El JSON no parece generado por analyze_telemetry.py para Heartbeat.');
+      }
+      currentReport = report;
+      renderHero(report, fileName);
+      renderHypotheses(report.hypotheses || {});
+      renderHeartbeat(report.heartbeat || {});
+      renderLevels(report.levels || {});
+      renderEventCounts(report.summary?.event_type_counts || {});
+      renderHideouts(report.hideouts || {});
+      renderFatigue(report.fatigue || {});
+      renderItems(report.items || {});
+      renderSessions(report.sessions || {});
+      renderQuality(report.data_quality || {});
+      renderLevelOptions(report);
+      drawMap();
+      setStatus(`Archivo cargado correctamente: ${fileName}`, 'ok');
+      $('footerText').textContent = `Dashboard cargado desde ${fileName}`;
+    }
+
+    function renderHero(report, fileName) {
+      const summary = report.summary || {};
+      const sessions = report.sessions || {};
+      const durations = Object.values(sessions).map(s => s.duration_ms).filter(v => v !== null && v !== undefined);
+      const avgSession = durations.length ? durations.reduce((a, b) => a + Number(b), 0) / durations.length : null;
+      $('leadText').innerHTML = `Resumen automático cargado desde <strong>${escapeHtml(fileName)}</strong>. Se han procesado <strong>${fmtInt(summary.total_events)}</strong> eventos repartidos en <strong>${fmtInt(summary.sessions_count)}</strong> sesiones y <strong>${fmtInt((summary.levels || []).length)}</strong> niveles.`;
+      $('kpiEvents').textContent = fmtInt(summary.total_events);
+      $('kpiEventsSub').textContent = `Archivos fuente: ${fmtInt((summary.source_files || []).length)} · Ventana temporal: ${fmtDurationMs(summary.time_span_ms)}`;
+      $('kpiSessions').textContent = fmtInt(summary.sessions_count);
+      $('kpiSessionsSub').textContent = `Duración media: ${fmtDurationMs(avgSession)}`;
+      $('kpiCoverage').textContent = fmtPct(report.data_quality?.coverage_score_pct, 0);
+      const missing = report.data_quality?.missing_events?.length || 0;
+      $('kpiCoverageSub').textContent = missing ? `${missing} evento(s) requeridos sin datos.` : 'Todos los tipos esperados aparecen al menos una vez.';
+      $('kpiHeartbeatFail').textContent = fmtPct(report.heartbeat?.fail_rate_pct);
+      $('kpiHeartbeatSub').textContent = `Intentos registrados: ${fmtInt(report.heartbeat?.total_attempts)}`;
+      $('kpiFatigueSpotted').textContent = fmtPct(report.fatigue?.spotted_while_fatigued_pct);
+      $('kpiFatigueSub').textContent = `${fmtInt(report.fatigue?.spotted_while_fatigued)} de ${fmtInt(report.fatigue?.spotted_total)} detecciones.`;
+    }
+
+    function renderHypotheses(hypotheses) {
+      const order = ['h1_heartbeat_pressure', 'h2_hideouts', 'h3_fatigue', 'h4_items'];
+      $('hypothesesGrid').innerHTML = order.map((key, idx) => {
+        const hyp = hypotheses[key] || {};
+        const status = hyp.status || 'pendiente';
+        const metric = hyp.main_metric;
+        const metricText = key === 'h1_heartbeat_pressure'
+          ? (metric === null || metric === undefined ? '—' : `${Number(metric).toFixed(1)} pp`)
+          : fmtPct(metric);
+        return `
+          <div class="hyp-card">
+            <div class="hyp-title">Hipótesis ${idx + 1}: ${escapeHtml(hyp.title || '')}</div>
+            <span class="badge ${escapeHtml(status)}">${labelStatus(status)}</span>
+            <div class="hyp-metric">${metricText}</div>
+            <div class="hyp-label">${escapeHtml(hyp.main_metric_label || '')}</div>
+            <p>${escapeHtml(hyp.conclusion || 'Sin conclusión.')}</p>
+          </div>
+        `;
+      }).join('');
+    }
+
+    function labelStatus(status) {
+      const map = { validada: 'Validada', parcial: 'Parcial', no_validada: 'No validada', pendiente: 'Pendiente' };
+      return map[status] || status;
+    }
+
+    function renderHeartbeat(hb) {
+      $('hbAttempts').textContent = fmtInt(hb.total_attempts);
+      $('hbFails').textContent = fmtInt(hb.failures);
+      $('hbAvgSuccess').textContent = fmtFloat(hb.avg_green_zone_success, 3);
+      $('hbAvgFail').textContent = fmtFloat(hb.avg_green_zone_failure, 3);
+      $('hbPills').innerHTML = `
+        <div class="pill"><span>Racha máxima de fallos</span><strong>${fmtInt(hb.max_consecutive_failures)}</strong></div>
+        <div class="pill"><span>Δ presión</span><strong>${hb.pressure_delta_fail_rate_pct == null ? '—' : `${Number(hb.pressure_delta_fail_rate_pct).toFixed(1)} pp`}</strong></div>
+        <div class="pill"><span>Zona media global</span><strong>${fmtFloat(hb.avg_green_zone, 3)}</strong></div>
+      `;
+      const bins = hb.green_zone_bins || [];
+      if (!bins.length) {
+        $('heartbeatBars').innerHTML = '<p class="muted">No hay HeartbeatAttempt con tamañoZonaVerde.</p>';
+        return;
+      }
+      $('heartbeatBars').innerHTML = bins.map(bin => {
+        const width = clamp(Number(bin.fail_rate_pct || 0), 0, 100);
+        return `
+          <div class="bar-row">
+            <div class="bar-label">Zona ${escapeHtml(bin.label)} · ${fmtInt(bin.attempts)} intentos</div>
+            <div class="bar-track"><div class="bar-fill" style="width:${width}%"></div></div>
+            <div class="bar-text">${fmtPct(bin.fail_rate_pct)}</div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    function renderLevels(levels) {
+      const rows = Object.entries(levels || {}).sort(([a], [b]) => Number(a) - Number(b));
+      if (!rows.length) {
+        $('levelsTable').innerHTML = '<tr><td colspan="6" class="muted">No hay datos de niveles.</td></tr>';
+        return;
+      }
+      $('levelsTable').innerHTML = rows.map(([level, data]) => `
+        <tr>
+          <td><strong>Nivel ${escapeHtml(level)}</strong></td>
+          <td>${fmtInt(data.starts)}</td>
+          <td>${fmtInt(data.completes)} <span class="muted">(${fmtPct(data.completion_rate_pct)})</span></td>
+          <td>${fmtInt(data.deaths)}</td>
+          <td>${fmtInt(data.spotted)}</td>
+          <td>${fmtInt(data.fatigue)}</td>
+        </tr>
+      `).join('');
+    }
+
+    function renderEventCounts(counts) {
+      const rows = Object.entries(counts || {}).sort((a, b) => b[1] - a[1]);
+      if (!rows.length) {
+        $('eventCountsTable').innerHTML = '<tr><td colspan="2" class="muted">No hay eventos.</td></tr>';
+        return;
+      }
+      $('eventCountsTable').innerHTML = rows.map(([name, count]) => `<tr><td><code>${escapeHtml(name)}</code></td><td>${fmtInt(count)}</td></tr>`).join('');
+    }
+
+    function renderHideouts(hideouts) {
+      $('hideEntries').textContent = fmtInt(hideouts.total_entries);
+      $('hideAvgTime').textContent = fmtDurationMs(hideouts.avg_time_inside_ms);
+      $('hideNearEnemy').textContent = fmtPct(hideouts.entries_with_enemy_near_pct);
+      $('hideAfterSpotted').textContent = fmtPct(hideouts.entries_after_spotted_pct);
+      const rows = hideouts.usage_by_hideout || [];
+      if (!rows.length) {
+        $('hideoutsTable').innerHTML = '<tr><td colspan="4" class="muted">No hay PlayerHidden.</td></tr>';
+        return;
+      }
+      $('hideoutsTable').innerHTML = rows.slice(0, 12).map(row => `
+        <tr>
+          <td>${escapeHtml(row.id)}</td>
+          <td>${escapeHtml(row.type)}</td>
+          <td>${fmtInt(row.entries)}</td>
+          <td>${fmtDurationMs(row.avg_duration_ms)}</td>
+        </tr>
+      `).join('');
+    }
+
+    function renderFatigue(fatigue) {
+      $('fatigueEvents').textContent = fmtInt(fatigue.fatigue_events);
+      $('fatigueSpotted').textContent = fmtPct(fatigue.spotted_while_fatigued_pct);
+      $('fatigueSurvival').textContent = fmtPct(fatigue.survival_after_fatigue_pct);
+      $('fatigueDeathTime').textContent = fmtDurationMs(fatigue.avg_time_to_death_after_fatigue_ms);
+      const rows = Object.entries(fatigue.spotted_by_state || {}).sort((a, b) => b[1] - a[1]);
+      if (!rows.length) {
+        $('spottedByStateTable').innerHTML = '<tr><td colspan="2" class="muted">No hay PlayerSpotted.</td></tr>';
+        return;
+      }
+      $('spottedByStateTable').innerHTML = rows.map(([state, count]) => `<tr><td>${escapeHtml(state)}</td><td>${fmtInt(count)}</td></tr>`).join('');
+    }
+
+    function renderItems(items) {
+      $('itemsPicked').textContent = fmtInt(items.picked_total);
+      $('itemsUsed').textContent = fmtInt(items.used_total);
+      $('itemsNearEnemy').textContent = fmtPct(items.used_with_enemy_near_pct);
+      $('itemsUnusedAtDeath').textContent = fmtInt(items.inventory_not_used_at_death_total);
+      const rows = items.by_type || [];
+      if (!rows.length) {
+        $('itemsTable').innerHTML = '<tr><td colspan="4" class="muted">No hay objetos.</td></tr>';
+        return;
+      }
+      $('itemsTable').innerHTML = rows.map(row => `
+        <tr>
+          <td>${escapeHtml(row.item)}</td>
+          <td>${fmtInt(row.picked)}</td>
+          <td>${fmtInt(row.used)} <span class="muted">(${fmtPct(row.use_rate_pct)})</span></td>
+          <td>${fmtInt(row.unused_at_death)}</td>
+        </tr>
+      `).join('');
+    }
+
+    function renderSessions(sessions) {
+      const rows = Object.entries(sessions || {}).sort((a, b) => (b[1].total_events || 0) - (a[1].total_events || 0));
+      if (!rows.length) {
+        $('sessionsTable').innerHTML = '<tr><td colspan="7" class="muted">No hay sesiones.</td></tr>';
+        return;
+      }
+      $('sessionsTable').innerHTML = rows.slice(0, 20).map(([session, data]) => `
+        <tr>
+          <td><code>${escapeHtml(shortId(session))}</code></td>
+          <td>${fmtDurationMs(data.duration_ms)}</td>
+          <td>${fmtInt(data.total_events)}</td>
+          <td>${fmtInt(data.deaths)}</td>
+          <td>${fmtInt(data.spotted)}</td>
+          <td>${fmtInt(data.fatigue)}</td>
+          <td>${fmtInt(data.item_uses)}</td>
+        </tr>
+      `).join('');
+    }
+
+    function renderQuality(quality) {
+      const missing = quality.missing_events || [];
+      const inferred = quality.inferred_metrics || [];
+      $('qualityIntro').textContent = missing.length
+        ? `Faltan ${missing.length} tipos de evento requeridos en los logs cargados. Algunas métricas se calculan por inferencia temporal.`
+        : 'Los tipos de evento principales aparecen en los datos. Aun así, algunas métricas tácticas pueden ser más sólidas si se guardan directamente en el evento.';
+      $('qualityPills').innerHTML = `
+        <div class="pill"><span>Cobertura</span><strong>${fmtPct(quality.coverage_score_pct, 0)}</strong></div>
+        <div class="pill"><span>Eventos faltantes</span><strong>${fmtInt(missing.length)}</strong></div>
+        <div class="pill"><span>Métricas inferidas</span><strong>${fmtInt(inferred.length)}</strong></div>
+      `;
+      $('warningsList').innerHTML = (quality.warnings || []).length
+        ? quality.warnings.map(w => `<li>${escapeHtml(w)}</li>`).join('')
+        : '<li>Sin avisos relevantes.</li>';
+      $('suggestionsList').innerHTML = (quality.suggestions || []).length
+        ? quality.suggestions.map(s => `<li>${escapeHtml(s)}</li>`).join('')
+        : '<li>Sin sugerencias.</li>';
+    }
+
+    function renderLevelOptions(report) {
+      const levels = report.summary?.levels || [];
+      mapLevel.innerHTML = '<option value="all">Todos los niveles</option>' + levels.map(level => `<option value="${escapeHtml(level)}">Nivel ${escapeHtml(level)}</option>`).join('');
+    }
+
+    function drawMap() {
+      const dpr = window.devicePixelRatio || 1;
+      const rect = canvas.getBoundingClientRect();
+      if (!rect.width || !rect.height) return;
+      canvas.width = rect.width * dpr;
+      canvas.height = rect.height * dpr;
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      const width = rect.width;
+      const height = rect.height;
+      ctx.clearRect(0, 0, width, height);
+      drawBackground(width, height);
+
+      if (!currentReport) {
+        $('mapEmpty').style.display = 'grid';
+        return;
+      }
+
+      const selectedType = mapType.value;
+      const selectedLevel = mapLevel.value;
+      const points = (currentReport.heatmaps?.points?.[selectedType] || []).filter(p => selectedLevel === 'all' || String(p.level) === selectedLevel);
+      const bounds = currentReport.heatmaps?.bounds || {};
+      if (!points.length || bounds.min_x === null || bounds.min_x === undefined) {
+        $('mapEmpty').textContent = 'No hay puntos para esta combinación de mapa y nivel.';
+        $('mapEmpty').style.display = 'grid';
+        return;
+      }
+      $('mapEmpty').style.display = 'none';
+      drawAxes(width, height, bounds);
+
+      if (selectedType === 'route') drawRoute(points, bounds, width, height);
+      else drawHeatPoints(points, bounds, width, height, selectedType);
+    }
+
+    function drawBackground(width, height) {
+      ctx.fillStyle = '#070910';
+      ctx.fillRect(0, 0, width, height);
+      ctx.strokeStyle = 'rgba(255,255,255,0.055)';
+      ctx.lineWidth = 1;
+      for (let x = 0; x <= width; x += width / 10) {
+        ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, height); ctx.stroke();
+      }
+      for (let y = 0; y <= height; y += height / 8) {
+        ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(width, y); ctx.stroke();
+      }
+    }
+
+    function drawAxes(width, height, bounds) {
+      ctx.fillStyle = 'rgba(255,255,255,0.55)';
+      ctx.font = '12px system-ui, sans-serif';
+      ctx.fillText(`x: ${Number(bounds.min_x).toFixed(1)} → ${Number(bounds.max_x).toFixed(1)}`, 16, height - 18);
+      ctx.fillText(`z: ${Number(bounds.min_z).toFixed(1)} → ${Number(bounds.max_z).toFixed(1)}`, 16, height - 36);
+    }
+
+    function project(point, bounds, width, height) {
+      const pad = 28;
+      const xRatio = (point.x - bounds.min_x) / (bounds.max_x - bounds.min_x);
+      const zRatio = (point.z - bounds.min_z) / (bounds.max_z - bounds.min_z);
+      return {
+        x: pad + xRatio * (width - pad * 2),
+        y: height - pad - zRatio * (height - pad * 2),
+      };
+    }
+
+    function drawRoute(points, bounds, width, height) {
+      const sorted = [...points].sort((a, b) => a.timestamp - b.timestamp);
+      ctx.strokeStyle = 'rgba(143,180,255,0.55)';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      sorted.forEach((point, index) => {
+        const p = project(point, bounds, width, height);
+        if (index === 0) ctx.moveTo(p.x, p.y);
+        else ctx.lineTo(p.x, p.y);
+      });
+      ctx.stroke();
+      sorted.forEach((point, index) => {
+        const p = project(point, bounds, width, height);
+        ctx.fillStyle = index === 0 ? '#49d6b4' : '#8fb4ff';
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, index === 0 ? 5 : 3, 0, Math.PI * 2);
+        ctx.fill();
+      });
+    }
+
+    function drawHeatPoints(points, bounds, width, height, type) {
+      const colorMap = {
+        death: [255, 77, 109],
+        spotted: [255, 186, 90],
+        hideout: [73, 214, 180],
+        item_use: [143, 180, 255],
+      };
+      const color = colorMap[type] || [255, 255, 255];
+      const buckets = new Map();
+      points.forEach(point => {
+        const p = project(point, bounds, width, height);
+        const key = `${Math.round(p.x / 18)},${Math.round(p.y / 18)}`;
+        const prev = buckets.get(key) || { x: p.x, y: p.y, count: 0 };
+        prev.count += 1;
+        buckets.set(key, prev);
+      });
+      const maxCount = Math.max(1, ...Array.from(buckets.values()).map(v => v.count));
+      Array.from(buckets.values()).forEach(bucket => {
+        const ratio = bucket.count / maxCount;
+        const radius = 8 + ratio * 30;
+        const gradient = ctx.createRadialGradient(bucket.x, bucket.y, 1, bucket.x, bucket.y, radius);
+        gradient.addColorStop(0, `rgba(${color[0]},${color[1]},${color[2]},${0.72})`);
+        gradient.addColorStop(1, `rgba(${color[0]},${color[1]},${color[2]},0)`);
+        ctx.fillStyle = gradient;
+        ctx.beginPath();
+        ctx.arc(bucket.x, bucket.y, radius, 0, Math.PI * 2);
+        ctx.fill();
+      });
+      points.forEach(point => {
+        const p = project(point, bounds, width, height);
+        ctx.fillStyle = `rgb(${color[0]},${color[1]},${color[2]})`;
+        ctx.beginPath(); ctx.arc(p.x, p.y, 3, 0, Math.PI * 2); ctx.fill();
+      });
+    }
+
+    function clamp(value, min, max) {
+      return Math.min(max, Math.max(min, value));
+    }
+  </script>
+</body>
+</html>
