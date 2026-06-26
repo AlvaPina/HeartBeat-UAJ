@@ -11,6 +11,7 @@ public class ServerPersistence : IPersistence
     private readonly List<string> buffer;
     private readonly string endpoint;
     private readonly MonoBehaviour coroutineRunner;
+    private bool sending = false;
 
     public ServerPersistence(ISerializer serializer, string endpoint, MonoBehaviour coroutineRunner)
     {
@@ -37,39 +38,42 @@ public class ServerPersistence : IPersistence
 
     public void Flush()
     {
-        if (buffer.Count == 0) return;
+        if (buffer.Count == 0 || sending) return;
 
         if (!(serializer is JsonSerializer))
         {
-            Debug.LogWarning("[ServerPersistence] Se recomienda usar JsonSerializer para envÌos HTTP.");
+            Debug.LogWarning("[ServerPersistence] Se recomienda usar JsonSerializer para env√≠os HTTP.");
         }
 
-        string payload = BuildPayload();
-        buffer.Clear();
-
-        if (coroutineRunner != null)
-            coroutineRunner.StartCoroutine(PostData(payload));
-        else
+        if (coroutineRunner == null)
+        {
             Debug.LogWarning("[ServerPersistence] No hay coroutineRunner. No se puede enviar al servidor.");
+            return;
+        }
+
+        List<string> pending = new List<string>(buffer);
+        buffer.Clear();
+        string payload = BuildPayload(pending);
+        coroutineRunner.StartCoroutine(PostData(payload, pending));
     }
 
-    private string BuildPayload()
+    private string BuildPayload(List<string> lines)
     {
-        // JSON lines o array simple; aquÌ lo dejamos como array JSON manual
         StringBuilder sb = new StringBuilder();
         sb.Append("[");
-        for (int i = 0; i < buffer.Count; i++)
+        for (int i = 0; i < lines.Count; i++)
         {
-            sb.Append(buffer[i]);
-            if (i < buffer.Count - 1)
+            sb.Append(lines[i]);
+            if (i < lines.Count - 1)
                 sb.Append(",");
         }
         sb.Append("]");
         return sb.ToString();
     }
 
-    private IEnumerator PostData(string payload)
+    private IEnumerator PostData(string payload, List<string> pending)
     {
+        sending = true;
         byte[] bodyRaw = Encoding.UTF8.GetBytes(payload);
 
         using (UnityWebRequest request = new UnityWebRequest(endpoint, "POST"))
@@ -82,12 +86,16 @@ public class ServerPersistence : IPersistence
 
             if (request.result != UnityWebRequest.Result.Success)
             {
-                Debug.LogError($"[ServerPersistence] Error enviando datos: {request.error}");
+                // Reinsertar al principio para no perder telemetr√≠a en fallos de red.
+                buffer.InsertRange(0, pending);
+                Debug.LogWarning($"[ServerPersistence] Error enviando datos. Se reintentar√° en el siguiente flush: {request.error}");
             }
             else
             {
                 Debug.Log("[ServerPersistence] Datos enviados correctamente.");
             }
         }
+
+        sending = false;
     }
 }

@@ -33,12 +33,10 @@ public class EventoInicioSesion : EventoBase
 [Serializable]
 public class EventoFinSesion : EventoBase
 {
+    // Segundos desde que arranc贸 la sesi贸n/juego.
     public float duracionSesion;
 
-    public EventoFinSesion(
-        int nivel,
-        float duracionSesion
-    ) : base(TipoEvento.SessionEnd, nivel)
+    public EventoFinSesion(int nivel, float duracionSesion) : base(TipoEvento.SessionEnd, nivel)
     {
         this.duracionSesion = duracionSesion;
     }
@@ -53,14 +51,36 @@ public class EventoInicioNivel : EventoBase
 [Serializable]
 public class EventoNivelCompletado : EventoBase
 {
+    // Segundos hasta completar el nivel.
     public float tiempoCompletado;
 
-    public EventoNivelCompletado(
-        int nivel,
-        float tiempoCompletado
-    ) : base(TipoEvento.LevelComplete, nivel)
+    public EventoNivelCompletado(int nivel, float tiempoCompletado) : base(TipoEvento.LevelComplete, nivel)
     {
         this.tiempoCompletado = tiempoCompletado;
+    }
+}
+
+[Serializable]
+public class EventoNivelFallido : EventoBase
+{
+    // Permite distinguir un intento fallido de una muerte concreta.
+    public float tiempoHastaFallo;
+    public string motivo;
+    public Vector3 posicion;
+    public EstadoJugador estadoJugador;
+
+    public EventoNivelFallido(
+        int nivel,
+        float tiempoHastaFallo,
+        string motivo,
+        Vector3 posicion,
+        EstadoJugador estadoJugador
+    ) : base(TipoEvento.LevelFail, nivel)
+    {
+        this.tiempoHastaFallo = tiempoHastaFallo;
+        this.motivo = motivo ?? string.Empty;
+        this.posicion = posicion;
+        this.estadoJugador = estadoJugador;
     }
 }
 
@@ -73,6 +93,15 @@ public class EventoEstadoJugador : EventoBase
     public bool cercaEnemigo;
     public bool cercaArmario;
 
+    // Campos extra para no depender solo de booleanos.
+    public string idEnemigoMasCercano;
+    public float distanciaEnemigo;
+    public string idEsconditeCercano;
+    public float distanciaArmario;
+    public bool tienePildora;
+    public bool tieneCaja;
+    public bool tieneReloj;
+
     public EventoEstadoJugador(
         int nivel,
         Vector3 posicion,
@@ -80,6 +109,36 @@ public class EventoEstadoJugador : EventoBase
         EstadoJugador estadoJugador,
         bool cercaEnemigo,
         bool cercaArmario
+    ) : this(
+        nivel,
+        posicion,
+        velocidad,
+        estadoJugador,
+        cercaEnemigo,
+        cercaArmario,
+        string.Empty,
+        -1f,
+        string.Empty,
+        -1f,
+        false,
+        false,
+        false
+    ) { }
+
+    public EventoEstadoJugador(
+        int nivel,
+        Vector3 posicion,
+        float velocidad,
+        EstadoJugador estadoJugador,
+        bool cercaEnemigo,
+        bool cercaArmario,
+        string idEnemigoMasCercano,
+        float distanciaEnemigo,
+        string idEsconditeCercano,
+        float distanciaArmario,
+        bool tienePildora,
+        bool tieneCaja,
+        bool tieneReloj
     ) : base(TipoEvento.PlayerState, nivel)
     {
         this.posicion = posicion;
@@ -87,6 +146,13 @@ public class EventoEstadoJugador : EventoBase
         this.estadoJugador = estadoJugador;
         this.cercaEnemigo = cercaEnemigo;
         this.cercaArmario = cercaArmario;
+        this.idEnemigoMasCercano = idEnemigoMasCercano ?? string.Empty;
+        this.distanciaEnemigo = distanciaEnemigo;
+        this.idEsconditeCercano = idEsconditeCercano ?? string.Empty;
+        this.distanciaArmario = distanciaArmario;
+        this.tienePildora = tienePildora;
+        this.tieneCaja = tieneCaja;
+        this.tieneReloj = tieneReloj;
     }
 }
 
@@ -96,14 +162,66 @@ public class EventoJugadorMuere : EventoBase
     public Vector3 posicion;
     public EstadoJugador estadoJugador;
 
+    // Datos clave para hip贸tesis 2, 3 y 4.
+    public bool cercaEnemigo;
+    public bool cercaArmario;
+    public string idEnemigo;
+    public string idEsconditeCercano;
+    public float distanciaEnemigo;
+    public float distanciaArmario;
+    public bool teniaPildora;
+    public bool teniaCaja;
+    public bool teniaReloj;
+    public string causaMuerte;
+
     public EventoJugadorMuere(
         int nivel,
         Vector3 posicion,
         EstadoJugador estadoJugador
+    ) : this(
+        nivel,
+        posicion,
+        estadoJugador,
+        false,
+        false,
+        string.Empty,
+        string.Empty,
+        -1f,
+        -1f,
+        false,
+        false,
+        false,
+        string.Empty
+    ) { }
+
+    public EventoJugadorMuere(
+        int nivel,
+        Vector3 posicion,
+        EstadoJugador estadoJugador,
+        bool cercaEnemigo,
+        bool cercaArmario,
+        string idEnemigo,
+        string idEsconditeCercano,
+        float distanciaEnemigo,
+        float distanciaArmario,
+        bool teniaPildora,
+        bool teniaCaja,
+        bool teniaReloj,
+        string causaMuerte
     ) : base(TipoEvento.PlayerDeath, nivel)
     {
         this.posicion = posicion;
         this.estadoJugador = estadoJugador;
+        this.cercaEnemigo = cercaEnemigo;
+        this.cercaArmario = cercaArmario;
+        this.idEnemigo = idEnemigo ?? string.Empty;
+        this.idEsconditeCercano = idEsconditeCercano ?? string.Empty;
+        this.distanciaEnemigo = distanciaEnemigo;
+        this.distanciaArmario = distanciaArmario;
+        this.teniaPildora = teniaPildora;
+        this.teniaCaja = teniaCaja;
+        this.teniaReloj = teniaReloj;
+        this.causaMuerte = causaMuerte ?? string.Empty;
     }
 }
 
@@ -115,18 +233,48 @@ public class EventoJugadorDetectado : EventoBase
     public Vector3 posicionJugador;
     public Vector3 posicionEnemigo;
 
+    // La distancia queda guardada para no tener que recalcularla fuera de Unity.
+    public float distanciaEnemigo;
+    public bool cercaArmario;
+    public string idEsconditeCercano;
+    public float distanciaArmario;
+
     public EventoJugadorDetectado(
         int nivel,
         string idEnemigo,
         EstadoJugador estadoJugador,
         Vector3 posicionJugador,
         Vector3 posicionEnemigo
+    ) : this(
+        nivel,
+        idEnemigo,
+        estadoJugador,
+        posicionJugador,
+        posicionEnemigo,
+        false,
+        string.Empty,
+        -1f
+    ) { }
+
+    public EventoJugadorDetectado(
+        int nivel,
+        string idEnemigo,
+        EstadoJugador estadoJugador,
+        Vector3 posicionJugador,
+        Vector3 posicionEnemigo,
+        bool cercaArmario,
+        string idEsconditeCercano,
+        float distanciaArmario
     ) : base(TipoEvento.PlayerSpotted, nivel)
     {
-        this.idEnemigo = idEnemigo;
+        this.idEnemigo = idEnemigo ?? string.Empty;
         this.estadoJugador = estadoJugador;
         this.posicionJugador = posicionJugador;
         this.posicionEnemigo = posicionEnemigo;
+        this.distanciaEnemigo = Vector3.Distance(posicionJugador, posicionEnemigo);
+        this.cercaArmario = cercaArmario;
+        this.idEsconditeCercano = idEsconditeCercano ?? string.Empty;
+        this.distanciaArmario = distanciaArmario;
     }
 }
 
@@ -134,16 +282,66 @@ public class EventoJugadorDetectado : EventoBase
 public class EventoIntentoLatido : EventoBase
 {
     public bool exito;
-    public float tama駉ZonaVerde;
+
+    // Se mantiene el nombre original para no romper el analizador ni los logs previos.
+    public float tama帽oZonaVerde;
+
+    // Nuevos campos para la hip贸tesis 1.
+    public float distanciaEnemigo;
+    public string idEnemigoMasCercano;
+    public Vector3 posicionJugador;
+    public Vector3 posicionEnemigo;
+    public EstadoJugador estadoJugador;
+    public bool cercaEnemigo;
+    public int fallosConsecutivos;
+    public float tiempoDesdeUltimoIntento;
+    public float tiempoDesdeUltimoPlayerSpotted;
 
     public EventoIntentoLatido(
         int nivel,
         bool exito,
-        float tama駉ZonaVerde
+        float tama帽oZonaVerde
+    ) : this(
+        nivel,
+        exito,
+        tama帽oZonaVerde,
+        -1f,
+        string.Empty,
+        Vector3.zero,
+        Vector3.zero,
+        EstadoJugador.Normal,
+        false,
+        0,
+        -1f,
+        -1f
+    ) { }
+
+    public EventoIntentoLatido(
+        int nivel,
+        bool exito,
+        float tama帽oZonaVerde,
+        float distanciaEnemigo,
+        string idEnemigoMasCercano,
+        Vector3 posicionJugador,
+        Vector3 posicionEnemigo,
+        EstadoJugador estadoJugador,
+        bool cercaEnemigo,
+        int fallosConsecutivos,
+        float tiempoDesdeUltimoIntento,
+        float tiempoDesdeUltimoPlayerSpotted
     ) : base(TipoEvento.HeartbeatAttempt, nivel)
     {
         this.exito = exito;
-        this.tama駉ZonaVerde = tama駉ZonaVerde;
+        this.tama帽oZonaVerde = tama帽oZonaVerde;
+        this.distanciaEnemigo = distanciaEnemigo;
+        this.idEnemigoMasCercano = idEnemigoMasCercano ?? string.Empty;
+        this.posicionJugador = posicionJugador;
+        this.posicionEnemigo = posicionEnemigo;
+        this.estadoJugador = estadoJugador;
+        this.cercaEnemigo = cercaEnemigo;
+        this.fallosConsecutivos = fallosConsecutivos;
+        this.tiempoDesdeUltimoIntento = tiempoDesdeUltimoIntento;
+        this.tiempoDesdeUltimoPlayerSpotted = tiempoDesdeUltimoPlayerSpotted;
     }
 }
 
@@ -152,12 +350,78 @@ public class EventoFatigaActivada : EventoBase
 {
     public EstadoJugador estadoJugador;
 
+    // Campos clave para hip贸tesis 3.
+    public Vector3 posicion;
+    public bool cercaEnemigo;
+    public string idEnemigoMasCercano;
+    public float distanciaEnemigo;
+    public int fallosConsecutivos;
+
     public EventoFatigaActivada(
         int nivel,
         EstadoJugador estadoJugador
+    ) : this(nivel, estadoJugador, Vector3.zero, false, string.Empty, -1f, 3) { }
+
+    public EventoFatigaActivada(
+        int nivel,
+        EstadoJugador estadoJugador,
+        Vector3 posicion,
+        bool cercaEnemigo,
+        string idEnemigoMasCercano,
+        float distanciaEnemigo,
+        int fallosConsecutivos
     ) : base(TipoEvento.FatigueTriggered, nivel)
     {
         this.estadoJugador = estadoJugador;
+        this.posicion = posicion;
+        this.cercaEnemigo = cercaEnemigo;
+        this.idEnemigoMasCercano = idEnemigoMasCercano ?? string.Empty;
+        this.distanciaEnemigo = distanciaEnemigo;
+        this.fallosConsecutivos = fallosConsecutivos;
+    }
+}
+
+[Serializable]
+public class EventoFatigaFinalizada : EventoBase
+{
+    public Vector3 posicion;
+    public float duracionFatiga;
+    public bool sobrevivio;
+    public EstadoJugador estadoJugadorFinal;
+
+    public EventoFatigaFinalizada(
+        int nivel,
+        Vector3 posicion,
+        float duracionFatiga,
+        bool sobrevivio,
+        EstadoJugador estadoJugadorFinal
+    ) : base(TipoEvento.FatigueEnded, nivel)
+    {
+        this.posicion = posicion;
+        this.duracionFatiga = duracionFatiga;
+        this.sobrevivio = sobrevivio;
+        this.estadoJugadorFinal = estadoJugadorFinal;
+    }
+}
+
+[Serializable]
+public class EventoEsconditeRegistrado : EventoBase
+{
+    // Evento opcional: se lanza al cargar un nivel para conocer tambi茅n armarios no usados.
+    public string idEscondite;
+    public TipoEscondite tipoEscondite;
+    public Vector3 posicion;
+
+    public EventoEsconditeRegistrado(
+        int nivel,
+        string idEscondite,
+        TipoEscondite tipoEscondite,
+        Vector3 posicion
+    ) : base(TipoEvento.HideoutRegistered, nivel)
+    {
+        this.idEscondite = idEscondite ?? string.Empty;
+        this.tipoEscondite = tipoEscondite;
+        this.posicion = posicion;
     }
 }
 
@@ -169,18 +433,50 @@ public class EventoJugadorOculto : EventoBase
     public Vector3 posicion;
     public bool entrando;
 
+    // Campos para hip贸tesis 2.
+    public bool cercaEnemigo;
+    public string idEnemigoMasCercano;
+    public float distanciaEnemigo;
+    public float tiempoDesdeUltimoPlayerSpotted;
+
     public EventoJugadorOculto(
         int nivel,
         string idEscondite,
         TipoEscondite tipoEscondite,
         Vector3 posicion,
         bool entrando
+    ) : this(
+        nivel,
+        idEscondite,
+        tipoEscondite,
+        posicion,
+        entrando,
+        false,
+        string.Empty,
+        -1f,
+        -1f
+    ) { }
+
+    public EventoJugadorOculto(
+        int nivel,
+        string idEscondite,
+        TipoEscondite tipoEscondite,
+        Vector3 posicion,
+        bool entrando,
+        bool cercaEnemigo,
+        string idEnemigoMasCercano,
+        float distanciaEnemigo,
+        float tiempoDesdeUltimoPlayerSpotted
     ) : base(TipoEvento.PlayerHidden, nivel)
     {
-        this.idEscondite = idEscondite;
+        this.idEscondite = idEscondite ?? string.Empty;
         this.tipoEscondite = tipoEscondite;
         this.posicion = posicion;
         this.entrando = entrando;
+        this.cercaEnemigo = cercaEnemigo;
+        this.idEnemigoMasCercano = idEnemigoMasCercano ?? string.Empty;
+        this.distanciaEnemigo = distanciaEnemigo;
+        this.tiempoDesdeUltimoPlayerSpotted = tiempoDesdeUltimoPlayerSpotted;
     }
 }
 
@@ -188,13 +484,28 @@ public class EventoJugadorOculto : EventoBase
 public class EventoItemRecogido : EventoBase
 {
     public TipoItem tipoItem;
+    public Vector3 posicion;
+    public EstadoJugador estadoJugador;
+    public bool cercaEnemigo;
+    public string idItem;
+
+    public EventoItemRecogido(int nivel, TipoItem tipoItem)
+        : this(nivel, tipoItem, Vector3.zero, EstadoJugador.Normal, false, string.Empty) { }
 
     public EventoItemRecogido(
         int nivel,
-        TipoItem tipoItem
+        TipoItem tipoItem,
+        Vector3 posicion,
+        EstadoJugador estadoJugador,
+        bool cercaEnemigo,
+        string idItem
     ) : base(TipoEvento.ItemPicked, nivel)
     {
         this.tipoItem = tipoItem;
+        this.posicion = posicion;
+        this.estadoJugador = estadoJugador;
+        this.cercaEnemigo = cercaEnemigo;
+        this.idItem = idItem ?? string.Empty;
     }
 }
 
@@ -203,11 +514,66 @@ public class EventoItemUsado : EventoBase
 {
     public TipoItem tipoItem;
 
+    // Campos clave para hip贸tesis 4.
+    public Vector3 posicion;
+    public EstadoJugador estadoJugador;
+    public bool cercaEnemigo;
+    public string idEnemigoMasCercano;
+    public float distanciaEnemigo;
+    public float tiempoDesdeUltimoPlayerSpotted;
+    public bool jugadorFatigado;
+    public int cantidadRestante;
+
+    public EventoItemUsado(int nivel, TipoItem tipoItem)
+        : this(nivel, tipoItem, Vector3.zero, EstadoJugador.Normal, false, string.Empty, -1f, -1f, false, -1) { }
+
     public EventoItemUsado(
         int nivel,
-        TipoItem tipoItem
+        TipoItem tipoItem,
+        Vector3 posicion,
+        EstadoJugador estadoJugador,
+        bool cercaEnemigo,
+        string idEnemigoMasCercano,
+        float distanciaEnemigo,
+        float tiempoDesdeUltimoPlayerSpotted,
+        bool jugadorFatigado,
+        int cantidadRestante
     ) : base(TipoEvento.ItemUsed, nivel)
     {
         this.tipoItem = tipoItem;
+        this.posicion = posicion;
+        this.estadoJugador = estadoJugador;
+        this.cercaEnemigo = cercaEnemigo;
+        this.idEnemigoMasCercano = idEnemigoMasCercano ?? string.Empty;
+        this.distanciaEnemigo = distanciaEnemigo;
+        this.tiempoDesdeUltimoPlayerSpotted = tiempoDesdeUltimoPlayerSpotted;
+        this.jugadorFatigado = jugadorFatigado;
+        this.cantidadRestante = cantidadRestante;
+    }
+}
+
+[Serializable]
+public class EventoInventarioSnapshot : EventoBase
+{
+    public int pildoras;
+    public int cajas;
+    public int relojes;
+    public int llaves;
+    public string contexto;
+
+    public EventoInventarioSnapshot(
+        int nivel,
+        int pildoras,
+        int cajas,
+        int relojes,
+        int llaves,
+        string contexto
+    ) : base(TipoEvento.ItemInventorySnapshot, nivel)
+    {
+        this.pildoras = pildoras;
+        this.cajas = cajas;
+        this.relojes = relojes;
+        this.llaves = llaves;
+        this.contexto = contexto ?? string.Empty;
     }
 }

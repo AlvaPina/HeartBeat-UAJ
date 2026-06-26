@@ -23,6 +23,6 @@ public abstract class EventoBase
 
     public void AsignarSesion(string nuevaSesion)
     {
-        idSesion = nuevaSesion;
+        idSesion = nuevaSesion ?? string.Empty;
     }
 }
