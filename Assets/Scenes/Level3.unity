@@ -49391,6 +49391,9 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 8efda9ccdb2b3194caaaae801db54c7f, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  usarServidor: 0
+  endpointServidor: http://localhost:3000/telemetry
+  guardarCsv: 0
   flushInterval: 10
   maxBufferedEvents: 500
 --- !u!4 &1947273392

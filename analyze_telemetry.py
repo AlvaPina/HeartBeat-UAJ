@@ -8,6 +8,7 @@ el dashboard_telemetria.html.
 Uso típico:
     python analyze_telemetry.py ./telemetria --json-out resumen_telemetria.json
     python analyze_telemetry.py telemetry_abc.jsonl telemetry_def.jsonl --json-out resumen.json
+    para ejecutar el py : python .\analyze_telemetry.py "$env:USERPROFILE\AppData\LocalLow\AppleAxion\HeartBeat" --json-out ".\resumen_telemetria.json" --pretty
 """
 
 from __future__ import annotations
