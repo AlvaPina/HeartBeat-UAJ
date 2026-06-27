@@ -13,6 +13,7 @@ public class PlayerStates : MonoBehaviour
     private GameObject _parentBoxInstance;
     [SerializeField] private float _timeOutPill = 10;
     private float _oldSpeed;
+    private float _fatigueStartTime;
     #endregion
 
 
@@ -75,19 +76,25 @@ public class PlayerStates : MonoBehaviour
         _clock = Instantiate(_clockPrefab, _player.transform.position, new Quaternion(0, 0, 0, 0));
         _clock.GetComponent<ClockDistractionComponent>().SetInstance = true;
 
-        Traker.Instance?.TrackEvent(new EventoItemUsado(UnityEngine.SceneManagement.SceneManager.GetActiveScene().buildIndex, TipoItem.Reloj));
+        GameManager.Instance.GetEntornoCercano(out bool cEne, out string idEn, out float distE, out _, out _, out _, out _);
+        Traker.Track(new EventoItemUsado(UnityEngine.SceneManagement.SceneManager.GetActiveScene().buildIndex, TipoItem.Reloj, _player.transform.position,
+                     _tired ? EstadoJugador.Fatigado : EstadoJugador.Normal, cEne, idEn, distE, -1f, _tired, 0));
     }
     public void EnterCloset()
     {
         _playerInCloset.SetActive(true);
         _hidden = true;
 
-        Traker.Instance?.TrackEvent(new EventoJugadorOculto(UnityEngine.SceneManagement.SceneManager.GetActiveScene().buildIndex, "Armario_X", TipoEscondite.Armario, transform.position, true));
+        GameManager.Instance.GetEntornoCercano(out bool cEne, out string idEn, out float distE, out _, out _, out _, out _);
+        Traker.Track(new EventoJugadorOculto(UnityEngine.SceneManagement.SceneManager.GetActiveScene().buildIndex, "Armario", TipoEscondite.Armario, transform.position, true, cEne, idEn, distE, -1f));
     }
     public void ExitCloset()
     {
         _playerInCloset.SetActive(false);
         _hidden = false;
+
+        GameManager.Instance.GetEntornoCercano(out bool cEne, out string idEn, out float distE, out _, out _, out _, out _);
+        Traker.Track(new EventoJugadorOculto(UnityEngine.SceneManagement.SceneManager.GetActiveScene().buildIndex, "Armario", TipoEscondite.Armario, transform.position, false, cEne, idEn, distE, -1f));
     }
     public void EnterBox() // player entra a caja
     {
@@ -104,8 +111,9 @@ public class PlayerStates : MonoBehaviour
         _boxInstance = Instantiate(_boxPrefab, _parentBoxInstance.transform);
         _isBox = true;
 
-        Traker.Instance?.TrackEvent(new EventoItemUsado(UnityEngine.SceneManagement.SceneManager.GetActiveScene().buildIndex, TipoItem.Caja));
-        Traker.Instance?.TrackEvent(new EventoJugadorOculto(UnityEngine.SceneManagement.SceneManager.GetActiveScene().buildIndex, "Caja_Movil", TipoEscondite.Caja, transform.position, true));
+        GameManager.Instance.GetEntornoCercano(out bool cEne, out string idEn, out float distE, out _, out _, out _, out _);
+        Traker.Track(new EventoItemUsado(UnityEngine.SceneManagement.SceneManager.GetActiveScene().buildIndex, TipoItem.Caja, transform.position, EstadoJugador.Normal, cEne, idEn, distE, -1f, false, 0));
+        Traker.Track(new EventoJugadorOculto(UnityEngine.SceneManagement.SceneManager.GetActiveScene().buildIndex, "Caja", TipoEscondite.Caja, transform.position, true, cEne, idEn, distE, -1f));
     }
     public void ExitBox() // player sale de caja
     {
@@ -117,6 +125,9 @@ public class PlayerStates : MonoBehaviour
         _inventory._cajaEquipado = false;
         _inventory.EliminaObjeto(2);
         _isBox = false;
+
+        GameManager.Instance.GetEntornoCercano(out bool cEne, out string idEn, out float distE, out _, out _, out _, out _);
+        Traker.Track(new EventoJugadorOculto(UnityEngine.SceneManagement.SceneManager.GetActiveScene().buildIndex, "Caja", TipoEscondite.Caja, transform.position, false, cEne, idEn, distE, -1f));
     }
     public void PillEffect()
     {
@@ -135,7 +146,8 @@ public class PlayerStates : MonoBehaviour
             _inventory._pildoraEquipado = false;
             _inventory.EliminaObjeto(1);
 
-            Traker.Instance?.TrackEvent(new EventoItemUsado(UnityEngine.SceneManagement.SceneManager.GetActiveScene().buildIndex, TipoItem.Pildora));
+            GameManager.Instance.GetEntornoCercano(out bool cEne, out string idEn, out float distE, out _, out _, out _, out _);
+            Traker.Track(new EventoItemUsado(UnityEngine.SceneManagement.SceneManager.GetActiveScene().buildIndex, TipoItem.Pildora, transform.position, _tired ? EstadoJugador.Fatigado : EstadoJugador.Normal, cEne, idEn, distE, -1f, _tired, 0));
         }
     }
 
@@ -194,11 +206,14 @@ public class PlayerStates : MonoBehaviour
     }
     public void SweatCancelMovement() // fatiga al fallar 3 veces
     {
-        Traker.Instance?.TrackEvent(new EventoFatigaActivada(
+        GameManager.Instance.GetEntornoCercano(out bool cEne, out string idEn, out float distE, out _, out _, out _, out _);
+
+        Traker.Track(new EventoFatigaActivada(
             UnityEngine.SceneManagement.SceneManager.GetActiveScene().buildIndex,
-            EstadoJugador.Fatigado
+            EstadoJugador.Fatigado, transform.position, cEne, idEn, distE, 3
         ));
 
+        _fatigueStartTime = Time.time;
         _tired = true;
         _playerAnimator.SetBool("Sweat", true);
         PlayTiredAudio();
@@ -209,6 +224,12 @@ public class PlayerStates : MonoBehaviour
 
     private void SweatActiveMovement() // reanuda el movimiento
     {
+        float duracion = Time.time - _fatigueStartTime;
+        Traker.Track(new EventoFatigaFinalizada(
+            UnityEngine.SceneManagement.SceneManager.GetActiveScene().buildIndex,
+            transform.position, duracion, true, EstadoJugador.Normal
+        ));
+
         _tired = false;
         _playerAnimator.SetBool("Sweat", false);
         GetComponent<MovementComponent>().speed = _oldSpeed;

@@ -24,6 +24,7 @@ public class HeartDetection : MonoBehaviour
 
     [SerializeField] bool DEBUG;
     private int _fails; //Numero de fallos
+    private float _lastAttemptTime = -1f;
 
     #endregion
 
@@ -63,45 +64,33 @@ public class HeartDetection : MonoBehaviour
     {
         _canPress = false;
     }
-    public void SpacePressed() //Metodo que se activa al pulsar el espacio y realiza acciones diferentes segun el estado del corazón respecto a la barra de pulsaciones
+
+    private void RegistrarIntentoTelemetria(bool exito)
     {
-        if (!_hasPressed && _canPress) //Si ya se ha presionado espacio en esa vuelta no hace nada
-        {
-            if (!_inSafeZone) //Si no esta en la zona segura (FALLO POR PULSAR MAL)
-            {
-                // Telemetría de Fallo
-                Traker.Instance?.TrackEvent(new EventoIntentoLatido(
-                    UnityEngine.SceneManagement.SceneManager.GetActiveScene().buildIndex,
-                    false, // exito = false
-                    ObtenerTamañoZonaVerde()
-                ));
+        float tiempoUltimo = _lastAttemptTime > 0 ? Time.time - _lastAttemptTime : -1f;
+        _lastAttemptTime = Time.time;
 
-                _fails++; //Aumenta en uno los fallos
-                _failSound.volume = GameManager.Instance.getSFX * _beepVolume / 10;
-                _failSound.Play();
-                _warning.SetActive(true);
+        EstadoJugador estado = GameManager.PlayerStates.Tired ? EstadoJugador.Fatigado :
+                              (GameManager.PlayerStates.Hidden || GameManager.PlayerStates.IsBox ? EstadoJugador.Oculto : EstadoJugador.Normal);
 
-                if (_fails == 1) _currentImage.sprite = _brokenHeart1;
-                if (_fails == 2) _currentImage.sprite = _brokenHeart2;
-                if (_fails == 3) _currentImage.sprite = _brokenHeart3;
-                _hasPressed = true; //Se activa el bool de pulsado
-            }
-            else if (_fails < 3) // (ACIerto)
-            {
-                // Telemetría de Acierto
-                Traker.Instance?.TrackEvent(new EventoIntentoLatido(
-                    UnityEngine.SceneManagement.SceneManager.GetActiveScene().buildIndex,
-                    true,  // exito = true
-                    ObtenerTamañoZonaVerde()
-                ));
+        GameManager.Instance.GetEntornoCercano(out bool cEnemigo, out string idEnemigo, out float distEnemigo, out Vector3 posEnemigo, out _, out _, out _);
 
-                _hasPressed = true; //Se activa el bool de pulsado
-                _currentImage.sprite = _safeHeart;
-            }
-        }
+        Traker.Track(new EventoIntentoLatido(
+            UnityEngine.SceneManagement.SceneManager.GetActiveScene().buildIndex,
+            exito,
+            ObtenerTamañoZonaVerde(),
+            distEnemigo,
+            idEnemigo,
+            GameManager.Player.transform.position,
+            posEnemigo,
+            estado,
+            cEnemigo,
+            _fails,
+            tiempoUltimo,
+            -1f
+        ));
     }
 
-    // Método auxiliar para obtener el tamaño de la zona verde
     private float ObtenerTamañoZonaVerde()
     {
         RectTransform rect = _safeZone.GetComponent<RectTransform>();
@@ -110,6 +99,37 @@ public class HeartDetection : MonoBehaviour
             return rect.rect.width * rect.localScale.x; // Calcula el tamaño real en pantalla
         }
         return _safeZone.transform.localScale.x; // Por si acaso no usara RectTransform
+    }
+
+    public void SpacePressed() //Metodo que se activa al pulsar el espacio y realiza acciones diferentes segun el estado del corazón respecto a la barra de pulsaciones
+    {
+        if (!_hasPressed && _canPress) //Si ya se ha presionado espacio en esa vuelta no hace nada
+        {
+            if (!_inSafeZone) //Si no esta en la zona segura (FALLO POR PULSAR MAL)
+            {
+                _fails++; //Aumenta en uno los fallos
+                RegistrarIntentoTelemetria(false);
+                _failSound.volume = GameManager.Instance.getSFX * _beepVolume / 10;
+                _failSound.Play();
+                _warning.SetActive(true);
+
+                if (_fails == 1)
+                    _currentImage.sprite = _brokenHeart1;
+                if (_fails == 2)
+                    _currentImage.sprite = _brokenHeart2;
+                if (_fails == 3)
+                    _currentImage.sprite = _brokenHeart3;
+                _hasPressed = true; //Se activa el bool de pulsado
+            }
+            else if (_fails < 3)
+            {
+                RegistrarIntentoTelemetria(true);
+
+                _hasPressed = true; //Se activa el bool de pulsado
+                _currentImage.sprite = _safeHeart;
+            }
+        }
+
     }
 
     public void ResetValues() //Al haber dado una vuelta se activa este metodo para restablecer valores al estado original
@@ -124,7 +144,7 @@ public class HeartDetection : MonoBehaviour
     {
         if (collision.gameObject == _safeZone) //Si el trigger es el de la zona segura
         {
-            _beepSound.volume = GameManager.Instance.getSFX * _beepVolume; 
+            _beepSound.volume = GameManager.Instance.getSFX * _beepVolume;
             _beepSound.Play();
             _inSafeZone = true; //El bool de zona segura se activa
         }
@@ -139,13 +159,9 @@ public class HeartDetection : MonoBehaviour
 
             if (!_hasPressed && !_pillEffects) //Si no se a presionado el espacio quiere decir que se ha saltado la zona segura y por tanto es un fallo
             {
-                Traker.Instance?.TrackEvent(new EventoIntentoLatido(
-                UnityEngine.SceneManagement.SceneManager.GetActiveScene().buildIndex,
-                false, // exito = false
-                ObtenerTamañoZonaVerde()
-                ));
-                
                 _fails++;
+                RegistrarIntentoTelemetria(false);
+
                 _failSound.volume = GameManager.Instance.getSFX * _beepVolume / 10;
                 _failSound.Play();
                 _warning.SetActive(true);

@@ -76,16 +76,55 @@ public class GameManager : MonoBehaviour
 
     #region methods
 
+    // Funci�n arreglada para no usar Tags, busca por los componentes que ya ten�is
+    public void GetEntornoCercano(out bool cercaEnemigo, out string idEnemigo, out float distEnemigo, out Vector3 posEnemigo,
+                                  out bool cercaArmario, out string idArmario, out float distArmario)
+    {
+        cercaEnemigo = false; idEnemigo = ""; distEnemigo = -1f; posEnemigo = Vector3.zero;
+        cercaArmario = false; idArmario = ""; distArmario = -1f;
+
+        if (_player == null) return;
+        Vector3 pPos = _player.transform.position;
+
+        // Busca todos los objetos que tengan el script EnemyAI
+        EnemyAI[] enemigos = FindObjectsOfType<EnemyAI>();
+        float minE = float.MaxValue;
+        foreach (var e in enemigos)
+        {
+            float d = Vector2.Distance(pPos, e.transform.position);
+            if (d < minE) { minE = d; idEnemigo = e.gameObject.name; posEnemigo = e.transform.position; }
+        }
+        if (minE != float.MaxValue) { distEnemigo = minE; cercaEnemigo = minE <= 10f; }
+
+        // Busca todos los objetos que tengan el script ClosetComponent
+        ClosetComponent[] armarios = FindObjectsOfType<ClosetComponent>();
+        float minA = float.MaxValue;
+        foreach (var a in armarios)
+        {
+            float d = Vector2.Distance(pPos, a.transform.position);
+            if (d < minA) { minA = d; idArmario = a.gameObject.name; }
+        }
+        if (minA != float.MaxValue) { distArmario = minA; cercaArmario = minA <= 5f; }
+    }
     public void GameOver()
     {
         // Calculamos si estaba normal, fatigado u oculto
         EstadoJugador estado = GameManager.PlayerStates.Tired ? EstadoJugador.Fatigado :
                               (GameManager.PlayerStates.Hidden || GameManager.PlayerStates.IsBox ? EstadoJugador.Oculto : EstadoJugador.Normal);
 
-        Traker.Instance?.TrackEvent(new EventoJugadorMuere(
+        GetEntornoCercano(out bool cEnemigo, out string idEnemigo, out float distEnemigo, out Vector3 posEnemigo,
+                          out bool cArmario, out string idArmario, out float distArmario);
+
+        Inventory inv = GetComponent<Inventory>();
+
+        Traker.Track(new EventoJugadorMuere(
             SceneManager.GetActiveScene().buildIndex,
             _player.transform.position,
-            estado
+            estado,
+            cEnemigo, cArmario,
+            idEnemigo, idArmario, distEnemigo, distArmario,
+            inv._PildoraEquipado, inv._CajaEquipado, inv._DespertadorEquipado,
+            "Enemy"
         ));
 
         GetComponent<PauseInput>().enabled = false;
@@ -293,6 +332,6 @@ public class GameManager : MonoBehaviour
         _amountOfChildren = _enemyGroup.transform.childCount;
         _audioMusic = _audioSFX = 1;
 
-        Traker.Instance?.TrackEvent(new EventoInicioNivel(SceneManager.GetActiveScene().buildIndex));
+        Traker.Track(new EventoInicioNivel(SceneManager.GetActiveScene().buildIndex));
     }
 }
