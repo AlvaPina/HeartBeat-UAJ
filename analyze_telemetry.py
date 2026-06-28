@@ -8,7 +8,7 @@ el dashboard_telemetria.html.
 Uso típico:
     python analyze_telemetry.py ./telemetria --json-out resumen_telemetria.json
     python analyze_telemetry.py telemetry_abc.jsonl telemetry_def.jsonl --json-out resumen.json
-    para ejecutar el py : python .\analyze_telemetry.py "$env:USERPROFILE\AppData\LocalLow\AppleAxion\HeartBeat" --json-out ".\resumen_telemetria.json" --pretty
+    para ejecutar el py : python .\\analyze_telemetry.py "$env:USERPROFILE\\AppData\\LocalLow\\AppleAxion\\HeartBeat" --json-out ".\\resumen_telemetria.json" --pretty
 """
 
 from __future__ import annotations
@@ -48,6 +48,53 @@ HIDEOUT_NAMES = {
 TERMINAL_TYPES = {"PlayerDeath", "LevelComplete", "SessionEnd"}
 POSITION_KEYS = ("posicion", "position", "pos")
 GREEN_ZONE_KEYS = ("tamañoZonaVerde", "tamanoZonaVerde", "greenZoneSize", "green_zone_size")
+
+# En Unity se guarda el buildIndex de la escena. En este proyecto los niveles
+# jugables están montados cada 3 escenas: build 3 => nivel 1, build 6 => nivel 2,
+# build 9 => nivel 3, build 12 => nivel 4 y build 15 => nivel 5.
+LEVEL_INDEX_TO_REAL = {3: 1, 6: 2, 9: 3, 12: 4, 15: 5}
+REAL_LEVELS = {1, 2, 3, 4, 5}
+
+
+
+# Bounds del mapa completo en coordenadas Unity para alinear los fondos.
+# Sin esto, si el jugador no recorre todo el mapa, el dashboard estira el recorrido
+# hasta los bordes de la imagen usando solo min/max de puntos visitados.
+LEVEL_WORLD_BOUNDS_OVERRIDES = {
+    # Nivel 3: la ruta de la muestra no cubre la sala derecha ni todo el borde inferior.
+    # Estos límites evitan que el recorrido se estire hasta zonas grises/imposibles del fondo.
+    "3": {"min_x": -31.0, "max_x": 14.0, "min_z": -39.0, "max_z": 2.0},
+}
+
+
+def apply_level_bounds_override(level: Any, bounds: Dict[str, Optional[float]]) -> Dict[str, Optional[float]]:
+    override = LEVEL_WORLD_BOUNDS_OVERRIDES.get(str(level))
+    if not override:
+        return bounds
+    merged = dict(bounds)
+    merged.update(override)
+    merged.setdefault("x_axis", bounds.get("x_axis", "x"))
+    merged.setdefault("y_axis", bounds.get("y_axis", "y"))
+    merged["bounds_source"] = "manual_level_world_bounds"
+    return merged
+
+
+def pad_bounds(bounds: Dict[str, Optional[float]], ratio: float = 0.06) -> Dict[str, Optional[float]]:
+    if bounds.get("min_x") is None or bounds.get("min_z") is None:
+        return bounds
+    min_x = float(bounds["min_x"])
+    max_x = float(bounds["max_x"])
+    min_z = float(bounds["min_z"])
+    max_z = float(bounds["max_z"])
+    pad_x = max((max_x - min_x) * ratio, 0.5)
+    pad_z = max((max_z - min_z) * ratio, 0.5)
+    padded = dict(bounds)
+    padded["min_x"] = min_x - pad_x
+    padded["max_x"] = max_x + pad_x
+    padded["min_z"] = min_z - pad_z
+    padded["max_z"] = max_z + pad_z
+    padded.setdefault("bounds_source", "data_bounds_with_padding")
+    return padded
 
 
 def as_float(value: Any, default: Optional[float] = None) -> Optional[float]:
@@ -112,9 +159,39 @@ def get_session_id(event: Dict[str, Any]) -> str:
     return str(event.get("idSesion") or event.get("sessionId") or event.get("session_id") or "sin_sesion")
 
 
-def get_level(event: Dict[str, Any]) -> str:
+def get_raw_level(event: Dict[str, Any]) -> str:
     level = event.get("nivel", event.get("level", "sin_nivel"))
-    return str(level)
+    if level is None or str(level).strip() == "":
+        return "sin_nivel"
+    return str(level).strip()
+
+
+def get_level(event: Dict[str, Any]) -> str:
+    """Devuelve el nivel real del juego, no el buildIndex crudo de Unity."""
+    raw = get_raw_level(event)
+    if raw == "sin_nivel":
+        return raw
+
+    number = as_float(raw)
+    if number is not None and math.isfinite(number) and float(number).is_integer():
+        int_level = int(number)
+        if int_level in LEVEL_INDEX_TO_REAL:
+            return str(LEVEL_INDEX_TO_REAL[int_level])
+        if int_level in REAL_LEVELS:
+            return str(int_level)
+        if int_level == -1:
+            return "sin_nivel"
+    return raw
+
+
+def level_sort_key(level: Any) -> Tuple[int, int, str]:
+    text = str(level)
+    number = as_float(text)
+    if number is not None and math.isfinite(number) and float(number).is_integer():
+        return (0, int(number), text)
+    if text == "sin_nivel":
+        return (2, 0, text)
+    return (1, 0, text)
 
 
 def get_timestamp(event: Dict[str, Any]) -> int:
@@ -316,6 +393,48 @@ def seconds_to_ms(value: Any) -> Optional[float]:
     return v * 1000.0
 
 
+def level_as_int(level: Any) -> Optional[int]:
+    number = as_float(level)
+    if number is None or not math.isfinite(number) or not float(number).is_integer():
+        return None
+    return int(number)
+
+
+def has_estado_jugador_payload(event: Dict[str, Any]) -> bool:
+    return event.get("estadoJugador") is not None or event.get("playerState") is not None
+
+
+def get_route_position(event: Dict[str, Any]) -> Optional[Dict[str, float]]:
+    """Devuelve una posición de jugador útil para recorrido, aunque no haya PlayerState explícito."""
+    typ = get_event_type(event)
+    if typ == "PlayerSpotted":
+        return get_position(event, ("posicionJugador", "playerPosition", "posicion", "position"))
+    if typ == "HeartbeatAttempt":
+        return get_position(event, ("posicionJugador", "playerPosition", "posicion", "position"))
+    if typ in {"PlayerState", "PlayerDeath", "FatigueTriggered", "FatigueEnded", "PlayerHidden", "ItemUsed", "ItemPicked"}:
+        return get_position(event)
+    return None
+
+
+def is_route_candidate(event: Dict[str, Any], prefer_explicit_player_state: bool) -> bool:
+    typ = get_event_type(event)
+    if prefer_explicit_player_state:
+        return typ == "PlayerState"
+    # Si no hay PlayerState real, usamos eventos que ya guardan estado/posición de jugador
+    # como aproximación del recorrido.
+    return typ in {
+        "PlayerState",
+        "HeartbeatAttempt",
+        "FatigueTriggered",
+        "FatigueEnded",
+        "PlayerDeath",
+        "PlayerSpotted",
+        "PlayerHidden",
+        "ItemUsed",
+        "ItemPicked",
+    }
+
+
 @dataclass
 class StateSample:
     timestamp: int
@@ -339,6 +458,7 @@ class TelemetryAnalyzer:
         self.by_session: Dict[str, List[Dict[str, Any]]] = defaultdict(list)
         for event in self.events:
             self.by_session[get_session_id(event)].append(event)
+        self._inferred_level_completions: Optional[Dict[str, Dict[str, Any]]] = None
 
     def nearest_previous_state(self, session_events: List[Dict[str, Any]], index: int) -> Optional[Dict[str, Any]]:
         target_ts = get_timestamp(session_events[index])
@@ -373,10 +493,77 @@ class TelemetryAnalyzer:
                 return candidate
         return None
 
+    def infer_level_completions(self) -> Dict[str, Dict[str, Any]]:
+        """Infiere LevelComplete cuando una sesión arranca un nivel posterior.
+
+        Ejemplo: LevelStart nivel 1 seguido de LevelStart nivel 2 implica que el
+        último intento de nivel 1 terminó completado. No se infiere en reinicios
+        del mismo nivel ni si ya hay LevelComplete explícito entre ambos starts.
+        """
+        if self._inferred_level_completions is not None:
+            return self._inferred_level_completions
+
+        inferred: Dict[str, Dict[str, Any]] = defaultdict(lambda: {
+            "count": 0,
+            "times_ms": [],
+            "events": [],
+        })
+
+        for session_id, session_events in self.by_session.items():
+            last_start: Optional[Dict[str, Any]] = None
+            explicit_complete_since_last_start = False
+
+            for event in session_events:
+                typ = get_event_type(event)
+                if typ == "LevelComplete" and last_start is not None:
+                    if get_level(event) == get_level(last_start):
+                        explicit_complete_since_last_start = True
+                    continue
+
+                if typ != "LevelStart":
+                    continue
+
+                if last_start is not None:
+                    previous_level = get_level(last_start)
+                    current_level = get_level(event)
+                    previous_number = level_as_int(previous_level)
+                    current_number = level_as_int(current_level)
+
+                    if (
+                        previous_number is not None
+                        and current_number is not None
+                        and current_number > previous_number
+                        and not explicit_complete_since_last_start
+                    ):
+                        duration = get_timestamp(event) - get_timestamp(last_start)
+                        if duration < 0:
+                            duration = None
+                        inferred[previous_level]["count"] += 1
+                        if duration is not None:
+                            inferred[previous_level]["times_ms"].append(duration)
+                        inferred[previous_level]["events"].append({
+                            "session": session_id,
+                            "completed_level": previous_level,
+                            "next_level": current_level,
+                            "start_timestamp": get_timestamp(last_start),
+                            "inferred_complete_timestamp": get_timestamp(event),
+                            "duration_ms": duration,
+                            "reason": "LevelStart de un nivel posterior",
+                        })
+
+                last_start = event
+                explicit_complete_since_last_start = False
+
+        self._inferred_level_completions = dict(inferred)
+        return self._inferred_level_completions
+
+    def state_payload_count(self) -> int:
+        return sum(1 for event in self.events if has_estado_jugador_payload(event))
+
     def base_summary(self) -> Dict[str, Any]:
         type_counts = Counter(get_event_type(e) for e in self.events)
         timestamps = [get_timestamp(e) for e in self.events if get_timestamp(e) > 0]
-        levels = sorted({get_level(e) for e in self.events}, key=lambda x: (str(x) == "sin_nivel", str(x)))
+        levels = sorted({get_level(e) for e in self.events}, key=level_sort_key)
         sessions = sorted(self.by_session.keys())
         return {
             "total_events": len(self.events),
@@ -393,6 +580,8 @@ class TelemetryAnalyzer:
         levels: Dict[str, Any] = defaultdict(lambda: {
             "starts": 0,
             "completes": 0,
+            "explicit_completes": 0,
+            "inferred_completes": 0,
             "deaths": 0,
             "heartbeat_attempts": 0,
             "heartbeat_fails": 0,
@@ -401,6 +590,8 @@ class TelemetryAnalyzer:
             "item_uses": 0,
             "hideout_entries": 0,
             "completion_times_ms": [],
+            "explicit_completion_times_ms": [],
+            "inferred_completion_times_ms": [],
         })
         for event in self.events:
             level = get_level(event)
@@ -410,9 +601,11 @@ class TelemetryAnalyzer:
                 row["starts"] += 1
             elif typ == "LevelComplete":
                 row["completes"] += 1
+                row["explicit_completes"] += 1
                 ms = seconds_to_ms(event.get("tiempoCompletado"))
                 if ms is not None:
                     row["completion_times_ms"].append(ms)
+                    row["explicit_completion_times_ms"].append(ms)
             elif typ == "PlayerDeath":
                 row["deaths"] += 1
             elif typ == "HeartbeatAttempt":
@@ -428,14 +621,30 @@ class TelemetryAnalyzer:
             elif typ == "PlayerHidden" and as_bool(event.get("entrando"), True):
                 row["hideout_entries"] += 1
 
+        inferred = self.infer_level_completions()
+        for level, data in inferred.items():
+            row = levels[level]
+            count = int(data.get("count", 0))
+            times = list(data.get("times_ms", []))
+            row["completes"] += count
+            row["inferred_completes"] += count
+            row["completion_times_ms"].extend(times)
+            row["inferred_completion_times_ms"].extend(times)
+
         output: Dict[str, Any] = {}
         for level, row in levels.items():
             times = row.pop("completion_times_ms")
+            explicit_times = row.pop("explicit_completion_times_ms")
+            inferred_times = row.pop("inferred_completion_times_ms")
             row["avg_completion_ms"] = safe_mean(times)
+            row["avg_explicit_completion_ms"] = safe_mean(explicit_times)
+            row["avg_inferred_completion_ms"] = safe_mean(inferred_times)
             row["heartbeat_fail_rate_pct"] = pct(row["heartbeat_fails"], row["heartbeat_attempts"])
             row["completion_rate_pct"] = pct(row["completes"], row["starts"])
+            row["explicit_completion_rate_pct"] = pct(row["explicit_completes"], row["starts"])
+            row["inferred_completion_rate_pct"] = pct(row["inferred_completes"], row["starts"])
             output[level] = row
-        return dict(sorted(output.items(), key=lambda kv: str(kv[0])))
+        return dict(sorted(output.items(), key=lambda kv: level_sort_key(kv[0])))
 
     def heartbeat_metrics(self) -> Dict[str, Any]:
         attempts = [e for e in self.events if get_event_type(e) == "HeartbeatAttempt"]
@@ -797,62 +1006,152 @@ class TelemetryAnalyzer:
             "note": "ItemUsed no incluye posición, estado ni cercanía con el evento C# actual; esas métricas se infieren desde el PlayerState anterior si existe.",
         }
 
+    def choose_heatmap_axes(self, points: List[Dict[str, Any]]) -> Tuple[str, str]:
+        """Elige plano del mapa. En juegos 3D suele ser X/Z; en 2D Unity suele dejar Z=0 y usar X/Y."""
+        if not points:
+            return "x", "z"
+
+        def axis_range(axis: str) -> float:
+            values = [as_float(point.get(axis)) for point in points]
+            values = [value for value in values if value is not None and math.isfinite(value)]
+            if len(values) < 2:
+                return 0.0
+            return max(values) - min(values)
+
+        y_range = axis_range("y")
+        z_range = axis_range("z")
+        # Si Z casi no varía pero Y sí, el mapa está en 2D X/Y. Esto evita que los puntos
+        # se dibujen como una línea horizontal en medio del canvas.
+        if z_range <= 0.001 and y_range > 0.001:
+            return "x", "y"
+        return "x", "z"
+
+    def add_projected_heatmap_coordinates(self, points: List[Dict[str, Any]], x_axis: str, y_axis: str) -> None:
+        for point in points:
+            point["map_x"] = point.get(x_axis, 0.0)
+            point["map_y"] = point.get(y_axis, 0.0)
+            point["map_x_axis"] = x_axis
+            point["map_y_axis"] = y_axis
+
+    def make_heatmap_point(
+        self,
+        event: Dict[str, Any],
+        pos: Dict[str, float],
+        point_type: str,
+        route_segment: Optional[str] = None,
+        route_inferred: bool = False,
+    ) -> Dict[str, Any]:
+        point = {
+            "level": get_level(event),
+            "raw_level": get_raw_level(event),
+            "session": get_session_id(event),
+            "timestamp": get_timestamp(event),
+            "x": pos["x"],
+            "y": pos["y"],
+            "z": pos["z"],
+            "event_type": get_event_type(event),
+        }
+        if point_type == "route":
+            point["route_segment"] = route_segment or f"{get_session_id(event)}:0"
+            point["route_inferred"] = route_inferred
+            point["route_source"] = get_event_type(event)
+        return point
+
     def heatmap_metrics(self) -> Dict[str, Any]:
         points: Dict[str, List[Dict[str, Any]]] = {"route": [], "death": [], "spotted": [], "hideout": [], "item_use": []}
+        has_explicit_player_state = any(get_event_type(event) == "PlayerState" for event in self.events)
+
+        # Recorrido: si existe PlayerState real, se usa solo ese evento. Si no existe,
+        # se reconstruye de forma aproximada con eventos que guardan estado/posición.
+        for session_id, session_events in self.by_session.items():
+            segment = 0
+            for event in session_events:
+                typ = get_event_type(event)
+                if typ == "LevelStart":
+                    segment += 1
+
+                if is_route_candidate(event, has_explicit_player_state):
+                    pos = get_route_position(event)
+                    if pos is not None:
+                        points["route"].append(self.make_heatmap_point(
+                            event,
+                            pos,
+                            "route",
+                            route_segment=f"{session_id}:{segment}",
+                            route_inferred=(typ != "PlayerState"),
+                        ))
+
+                if typ in {"PlayerDeath", "LevelComplete", "SessionEnd"}:
+                    segment += 1
+
         for event in self.events:
             typ = get_event_type(event)
-            pos: Optional[Dict[str, float]] = None
-            point_type: Optional[str] = None
-            if typ == "PlayerState":
+            if typ == "PlayerDeath":
                 pos = get_position(event)
-                point_type = "route"
-            elif typ == "PlayerDeath":
-                pos = get_position(event)
-                point_type = "death"
+                if pos:
+                    points["death"].append(self.make_heatmap_point(event, pos, "death"))
             elif typ == "PlayerSpotted":
                 pos = get_position(event, ("posicionJugador", "playerPosition", "posicion", "position"))
-                point_type = "spotted"
+                if pos:
+                    points["spotted"].append(self.make_heatmap_point(event, pos, "spotted"))
             elif typ == "PlayerHidden":
                 pos = get_position(event)
-                point_type = "hideout"
+                if pos:
+                    points["hideout"].append(self.make_heatmap_point(event, pos, "hideout"))
             elif typ == "ItemUsed":
                 pos = get_position(event)
-                point_type = "item_use"
-            if pos and point_type:
-                points[point_type].append({
-                    "level": get_level(event),
-                    "session": get_session_id(event),
-                    "timestamp": get_timestamp(event),
-                    "x": pos["x"],
-                    "y": pos["y"],
-                    "z": pos["z"],
-                    "event_type": typ,
-                })
+                if pos:
+                    points["item_use"].append(self.make_heatmap_point(event, pos, "item_use"))
 
-        bounds = self.compute_bounds([p for plist in points.values() for p in plist])
+        all_points = [p for plist in points.values() for p in plist]
+        x_axis, y_axis = self.choose_heatmap_axes(all_points)
+        self.add_projected_heatmap_coordinates(all_points, x_axis, y_axis)
+
+        bounds = pad_bounds(self.compute_bounds(all_points, x_axis=x_axis, y_axis=y_axis))
+        bounds_by_level = {}
+        for level in sorted({p["level"] for p in all_points}, key=level_sort_key):
+            level_bounds = self.compute_bounds([p for p in all_points if p["level"] == level], x_axis=x_axis, y_axis=y_axis)
+            level_bounds = pad_bounds(level_bounds)
+            level_bounds = apply_level_bounds_override(level, level_bounds)
+            bounds_by_level[level] = level_bounds
         grids = {name: self.build_grid(plist, bounds) for name, plist in points.items()}
+        route_sources = Counter(point.get("route_source", "Unknown") for point in points["route"])
         return {
             "points": {name: plist[:5000] for name, plist in points.items()},
             "points_truncated": {name: max(0, len(plist) - 5000) for name, plist in points.items()},
             "bounds": bounds,
+            "bounds_by_level": bounds_by_level,
+            "level_world_bounds_overrides": LEVEL_WORLD_BOUNDS_OVERRIDES,
+            "map_axes": {"x": x_axis, "y": y_axis},
+            "route_source": "PlayerState" if has_explicit_player_state else "inferred_from_state_position_events",
+            "route_source_counts": dict(route_sources),
             "grid_size": self.grid_size,
             "grids": grids,
         }
 
-    def compute_bounds(self, points: List[Dict[str, Any]]) -> Dict[str, Optional[float]]:
+    def compute_bounds(
+        self,
+        points: List[Dict[str, Any]],
+        x_axis: str = "x",
+        y_axis: str = "z",
+    ) -> Dict[str, Optional[float]]:
         if not points:
-            return {"min_x": None, "max_x": None, "min_z": None, "max_z": None}
-        xs = [p["x"] for p in points]
-        zs = [p["z"] for p in points]
+            return {"min_x": None, "max_x": None, "min_z": None, "max_z": None, "x_axis": x_axis, "y_axis": y_axis}
+        xs = [as_float(p.get("map_x", p.get(x_axis))) for p in points]
+        ys = [as_float(p.get("map_y", p.get(y_axis))) for p in points]
+        xs = [v for v in xs if v is not None and math.isfinite(v)]
+        ys = [v for v in ys if v is not None and math.isfinite(v)]
+        if not xs or not ys:
+            return {"min_x": None, "max_x": None, "min_z": None, "max_z": None, "x_axis": x_axis, "y_axis": y_axis}
         min_x, max_x = min(xs), max(xs)
-        min_z, max_z = min(zs), max(zs)
+        min_z, max_z = min(ys), max(ys)
         if math.isclose(min_x, max_x):
             min_x -= 1
             max_x += 1
         if math.isclose(min_z, max_z):
             min_z -= 1
             max_z += 1
-        return {"min_x": min_x, "max_x": max_x, "min_z": min_z, "max_z": max_z}
+        return {"min_x": min_x, "max_x": max_x, "min_z": min_z, "max_z": max_z, "x_axis": x_axis, "y_axis": y_axis}
 
     def build_grid(self, points: List[Dict[str, Any]], bounds: Dict[str, Optional[float]]) -> Dict[str, Any]:
         if not points or bounds["min_x"] is None:
@@ -865,8 +1164,10 @@ class TelemetryAnalyzer:
         width_z = max_z - min_z
 
         def cell_for(point: Dict[str, Any]) -> Tuple[int, int]:
-            gx = int(((point["x"] - min_x) / width_x) * self.grid_size)
-            gz = int(((point["z"] - min_z) / width_z) * self.grid_size)
+            px = as_float(point.get("map_x", point.get("x")), min_x) or min_x
+            py = as_float(point.get("map_y", point.get("z")), min_z) or min_z
+            gx = int(((px - min_x) / width_x) * self.grid_size)
+            gz = int(((py - min_z) / width_z) * self.grid_size)
             return max(0, min(self.grid_size - 1, gx)), max(0, min(self.grid_size - 1, gz))
 
         counters: Dict[str, Counter] = defaultdict(Counter)
@@ -894,7 +1195,7 @@ class TelemetryAnalyzer:
             output[session_id] = {
                 "total_events": len(events),
                 "event_type_counts": dict(type_counts),
-                "levels": sorted({get_level(e) for e in events}),
+                "levels": sorted({get_level(e) for e in events}, key=level_sort_key),
                 "duration_ms": explicit_duration_ms or ((max(timestamps) - min(timestamps)) if len(timestamps) >= 2 else None),
                 "deaths": type_counts.get("PlayerDeath", 0),
                 "spotted": type_counts.get("PlayerSpotted", 0),
@@ -907,39 +1208,48 @@ class TelemetryAnalyzer:
 
     def data_quality(self, metrics: Dict[str, Any]) -> Dict[str, Any]:
         counts = metrics["summary"]["event_type_counts"]
+        inferred_level_completions = self.infer_level_completions()
+        inferred_level_complete_count = sum(int(v.get("count", 0)) for v in inferred_level_completions.values())
+        estado_jugador_count = self.state_payload_count()
+        route_source = metrics.get("heatmaps", {}).get("route_source")
+
         required = [
             "SessionStart", "SessionEnd", "LevelStart", "LevelComplete", "PlayerState",
             "PlayerDeath", "PlayerSpotted", "HeartbeatAttempt", "FatigueTriggered",
             "PlayerHidden", "ItemPicked", "ItemUsed",
         ]
-        missing_events = [name for name in required if counts.get(name, 0) == 0]
+        effective_counts = dict(counts)
+        if inferred_level_complete_count > 0:
+            effective_counts["LevelComplete"] = effective_counts.get("LevelComplete", 0) + inferred_level_complete_count
+        if estado_jugador_count > 0:
+            effective_counts["PlayerState"] = effective_counts.get("PlayerState", 0) + estado_jugador_count
+
+        missing_events = [name for name in required if effective_counts.get(name, 0) == 0]
         warnings = []
-        if "LevelFail" not in counts:
-            warnings.append("No existe LevelFail en TipoEvento. Si un intento termina mal pero no hay PlayerDeath, no quedará marcado como fallo de nivel.")
+        if counts.get("LevelFail", 0) == 0:
+            warnings.append("No hay eventos LevelFail en los logs cargados. Si un intento termina mal pero no hay PlayerDeath, ese fallo de nivel no quedará representado.")
+        if counts.get("LevelComplete", 0) == 0 and inferred_level_complete_count > 0:
+            warnings.append("LevelComplete se ha inferido a partir de transiciones LevelStart hacia un nivel posterior; es válido para progreso, pero no sustituye al tiempo exacto de finalización.")
+        elif counts.get("LevelComplete", 0) == 0:
+            warnings.append("No hay LevelComplete explícito ni inferible en este lote.")
         if metrics["hideouts"].get("inferred_enemy_near_from_player_state", 0) > 0:
             warnings.append("Parte de la cercanía al enemigo en PlayerHidden se ha inferido desde el PlayerState anterior; es mejor guardar cercaEnemigo directamente en PlayerHidden.")
         if metrics["items"].get("inferred_context_on_item_use", 0) > 0:
-            warnings.append("ItemUsed no trae estado/posición/cercaEnemigo; el análisis táctico de objetos depende de inferencias temporales.")
-        if not metrics["hideouts"].get("unvisited_hideouts_available", False):
-            warnings.append("No se pueden calcular armarios no usados sin registrar todos los armarios existentes por nivel o un evento HideoutAvailable/HideoutCatalog.")
-        if counts.get("PlayerState", 0) == 0:
-            warnings.append("Sin PlayerState no se pueden dibujar recorridos ni inferir cercanía alrededor de muertes, objetos y armarios.")
+            warnings.append("ItemUsed no trae estado/posición/cercaEnemigo en algunos registros; el análisis táctico de objetos depende parcialmente de inferencias temporales.")
         if counts.get("HeartbeatAttempt", 0) and metrics["heartbeat"].get("avg_green_zone") is None:
             warnings.append("Hay HeartbeatAttempt, pero no se ha encontrado tamañoZonaVerde/tamanoZonaVerde.")
 
         inferred_metrics = [
-            "PlayerHidden.cercaEnemigo desde PlayerState anterior",
+            "LevelComplete desde LevelStart de un nivel posterior" if inferred_level_complete_count else None,
+            "PlayerState efectivo desde campos estadoJugador" if estado_jugador_count and counts.get("PlayerState", 0) == 0 else None,
+            "Recorrido aproximado desde eventos con posición" if route_source == "inferred_from_state_position_events" else None,
+            "PlayerHidden.cercaEnemigo desde PlayerState anterior" if metrics["hideouts"].get("inferred_enemy_near_from_player_state", 0) > 0 else None,
             "PlayerDeath cerca de armario no usado desde PlayerState anterior",
-            "ItemUsed cerca de enemigo / fatigado desde PlayerState anterior",
+            "ItemUsed cerca de enemigo / fatigado desde PlayerState anterior" if metrics["items"].get("inferred_context_on_item_use", 0) > 0 else None,
             "Objetos no usados al morir desde balance ItemPicked - ItemUsed por sesión",
         ]
-        suggestions = [
-            "Añadir cercaEnemigo, cercaArmario, estadoJugador y posicion a ItemUsed para validar hipótesis 4 sin inferencias.",
-            "Añadir cercaEnemigo o distanciaEnemigo a PlayerHidden para medir uso táctico de armarios con más precisión.",
-            "Registrar un catálogo de armarios por nivel si queréis medir armarios no usados o menos usados de verdad.",
-            "Guardar distanciaEnemigo en HeartbeatAttempt si el tamaño de zona verde no es una equivalencia exacta de la distancia.",
-            "Añadir LevelFail o LevelAbandoned si queréis separar muerte, reinicio, abandono y fallo de intento.",
-        ]
+        inferred_metrics = [m for m in inferred_metrics if m]
+        suggestions = []
         score = max(0, round(100 * (1 - len(missing_events) / len(required))))
         return {
             "required_events": required,
@@ -947,6 +1257,11 @@ class TelemetryAnalyzer:
             "coverage_score_pct": score,
             "warnings": warnings,
             "inferred_metrics": inferred_metrics,
+            "inferred_events": {
+                "LevelComplete": inferred_level_complete_count,
+                "PlayerState_from_estadoJugador": estado_jugador_count,
+            },
+            "effective_event_counts": dict(sorted(effective_counts.items())),
             "suggestions": suggestions,
         }
 
@@ -1063,6 +1378,7 @@ class TelemetryAnalyzer:
             "summary": self.base_summary(),
             "levels": self.level_metrics(),
             "sessions": self.session_metrics(),
+            "inferred_level_completions": self.infer_level_completions(),
             "heartbeat": self.heartbeat_metrics(),
             "hideouts": self.hideout_metrics(),
             "fatigue": self.fatigue_metrics(),

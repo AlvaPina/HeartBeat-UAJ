@@ -251,6 +251,8 @@
             <option value="hideout">Armarios/cajas usados</option>
           </select>
           <select id="mapLevel"><option value="all">Todos los niveles</option></select>
+          <input type="file" id="mapImageInput" accept="image/*" class="hidden" />
+          <button class="btn" id="mapImageButton" type="button">Fondo del nivel</button>
         </div>
         <div class="canvas-wrap">
           <canvas id="heatCanvas" width="980" height="520"></canvas>
@@ -343,12 +345,10 @@
       </div>
       <div class="panel">
         <h2>Calidad de datos</h2>
-        <p id="qualityIntro" style="margin-top:0;">Aquí aparecerán las métricas inferidas, avisos y mejoras recomendadas para que el diseño quede cerrado.</p>
+        <p id="qualityIntro" style="margin-top:0;">Aquí aparecerán las métricas inferidas y los avisos de calidad del análisis.</p>
         <div class="pill-row" id="qualityPills"></div>
         <h3>Avisos</h3>
         <ul class="notes" id="warningsList"><li>Carga un JSON para ver avisos.</li></ul>
-        <h3>Mejoras recomendadas</h3>
-        <ul class="notes" id="suggestionsList"><li>Carga un JSON para ver sugerencias.</li></ul>
       </div>
     </section>
 
@@ -363,9 +363,18 @@
     const statusText = $('statusText');
     const mapType = $('mapType');
     const mapLevel = $('mapLevel');
+    const mapImageInput = $('mapImageInput');
+    const mapImageButton = $('mapImageButton');
     const canvas = $('heatCanvas');
     const ctx = canvas.getContext('2d');
     let currentReport = null;
+    const mapBackgrounds = {};
+    const mapBackgroundMeta = {};
+    // Bounds del mapa completo en coordenadas Unity. Evita que un nivel se estire
+    // según solo los puntos visitados. Especialmente importante en el nivel 3.
+    const fallbackLevelBounds = {
+      '3': { min_x: -31.0, max_x: 14.0, min_z: -39.0, max_z: 2.0, x_axis: 'x', y_axis: 'y', bounds_source: 'dashboard_fallback_level_world_bounds' },
+    };
 
     pickButton.addEventListener('click', () => fileInput.click());
     fileInput.addEventListener('change', (event) => {
@@ -388,6 +397,12 @@
     });
     mapType.addEventListener('change', drawMap);
     mapLevel.addEventListener('change', drawMap);
+    mapImageButton.addEventListener('click', () => mapImageInput.click());
+    mapImageInput.addEventListener('change', (event) => {
+      const file = event.target.files?.[0];
+      if (file) handleMapImage(file);
+      mapImageInput.value = '';
+    });
     window.addEventListener('resize', drawMap);
 
     function setStatus(message, type = '') {
@@ -446,6 +461,109 @@
         console.error(error);
         setStatus(`No se pudo leer el JSON: ${error.message}`, 'error');
       }
+    }
+
+    function handleMapImage(file) {
+      if (!file.type.startsWith('image/')) {
+        setStatus('El fondo del mapa debe ser una imagen.', 'error');
+        return;
+      }
+      const targetLevel = mapLevel.value || 'all';
+      const reader = new FileReader();
+      reader.onload = () => {
+        const img = new Image();
+        img.onload = () => {
+          mapBackgrounds[String(targetLevel)] = img;
+          mapBackgroundMeta[String(targetLevel)] = { contentBox: detectImageContentBox(img) };
+          drawMap();
+          const levelText = targetLevel === 'all' ? 'todos los niveles' : `nivel ${targetLevel}`;
+          setStatus(`Fondo de mapa cargado para ${levelText}: ${file.name}`, 'ok');
+        };
+        img.onerror = () => setStatus('No se pudo cargar la imagen de fondo.', 'error');
+        img.src = reader.result;
+      };
+      reader.onerror = () => setStatus('No se pudo leer la imagen de fondo.', 'error');
+      reader.readAsDataURL(file);
+    }
+
+    function detectImageContentBox(img) {
+      const width = img.naturalWidth || img.width;
+      const height = img.naturalHeight || img.height;
+      const off = document.createElement('canvas');
+      off.width = width;
+      off.height = height;
+      const offCtx = off.getContext('2d', { willReadFrequently: true });
+      offCtx.drawImage(img, 0, 0);
+      const data = offCtx.getImageData(0, 0, width, height).data;
+      const step = Math.max(1, Math.floor(Math.min(width, height) / 300));
+      const edgeBuckets = new Map();
+      const edgeSamples = [];
+
+      function addSample(r, g, b, a) {
+        const key = `${Math.round(r / 16)},${Math.round(g / 16)},${Math.round(b / 16)},${Math.round(a / 32)}`;
+        const entry = edgeBuckets.get(key) || { count: 0, r: 0, g: 0, b: 0, a: 0 };
+        entry.count += 1;
+        entry.r += r;
+        entry.g += g;
+        entry.b += b;
+        entry.a += a;
+        edgeBuckets.set(key, entry);
+      }
+
+      for (let x = 0; x < width; x += step) {
+        for (const y of [0, height - 1]) {
+          const idx = (y * width + x) * 4;
+          addSample(data[idx], data[idx + 1], data[idx + 2], data[idx + 3]);
+        }
+      }
+      for (let y = 0; y < height; y += step) {
+        for (const x of [0, width - 1]) {
+          const idx = (y * width + x) * 4;
+          addSample(data[idx], data[idx + 1], data[idx + 2], data[idx + 3]);
+        }
+      }
+
+      let best = null;
+      edgeBuckets.forEach((value) => {
+        if (!best || value.count > best.count) best = value;
+      });
+      const backgroundColor = best
+        ? { r: best.r / best.count, g: best.g / best.count, b: best.b / best.count, a: best.a / best.count }
+        : { r: 0, g: 0, b: 0, a: 255 };
+
+      let minX = width;
+      let minY = height;
+      let maxX = -1;
+      let maxY = -1;
+      const tolerance = 26;
+
+      for (let y = 0; y < height; y += step) {
+        for (let x = 0; x < width; x += step) {
+          const idx = (y * width + x) * 4;
+          const r = data[idx];
+          const g = data[idx + 1];
+          const b = data[idx + 2];
+          const a = data[idx + 3];
+          const diff = Math.abs(r - backgroundColor.r) + Math.abs(g - backgroundColor.g) + Math.abs(b - backgroundColor.b) + Math.abs(a - backgroundColor.a) * 0.2;
+          if (a > 10 && diff > tolerance) {
+            if (x < minX) minX = x;
+            if (y < minY) minY = y;
+            if (x > maxX) maxX = x;
+            if (y > maxY) maxY = y;
+          }
+        }
+      }
+
+      if (maxX < minX || maxY < minY) {
+        return { left: 0, top: 0, right: width, bottom: height, width, height };
+      }
+
+      const pad = Math.max(2, step * 2);
+      minX = Math.max(0, minX - pad);
+      minY = Math.max(0, minY - pad);
+      maxX = Math.min(width, maxX + pad);
+      maxY = Math.min(height, maxY + pad);
+      return { left: minX, top: minY, right: maxX, bottom: maxY, width: maxX - minX, height: maxY - minY };
     }
 
     function renderReport(report, fileName = 'archivo cargado') {
@@ -547,16 +665,23 @@
         $('levelsTable').innerHTML = '<tr><td colspan="6" class="muted">No hay datos de niveles.</td></tr>';
         return;
       }
-      $('levelsTable').innerHTML = rows.map(([level, data]) => `
-        <tr>
-          <td><strong>Nivel ${escapeHtml(level)}</strong></td>
-          <td>${fmtInt(data.starts)}</td>
-          <td>${fmtInt(data.completes)} <span class="muted">(${fmtPct(data.completion_rate_pct)})</span></td>
-          <td>${fmtInt(data.deaths)}</td>
-          <td>${fmtInt(data.spotted)}</td>
-          <td>${fmtInt(data.fatigue)}</td>
-        </tr>
-      `).join('');
+      $('levelsTable').innerHTML = rows.map(([level, data]) => {
+        const explicit = Number(data.explicit_completes || 0);
+        const inferred = Number(data.inferred_completes || 0);
+        const completeDetail = inferred || explicit
+          ? `<br><span class="muted">explícitos ${fmtInt(explicit)} · inferidos ${fmtInt(inferred)}</span>`
+          : '';
+        return `
+          <tr>
+            <td><strong>Nivel ${escapeHtml(level)}</strong></td>
+            <td>${fmtInt(data.starts)}</td>
+            <td>${fmtInt(data.completes)} <span class="muted">(${fmtPct(data.completion_rate_pct)})</span>${completeDetail}</td>
+            <td>${fmtInt(data.deaths)}</td>
+            <td>${fmtInt(data.spotted)}</td>
+            <td>${fmtInt(data.fatigue)}</td>
+          </tr>
+        `;
+      }).join('');
     }
 
     function renderEventCounts(counts) {
@@ -644,19 +769,18 @@
       const missing = quality.missing_events || [];
       const inferred = quality.inferred_metrics || [];
       $('qualityIntro').textContent = missing.length
-        ? `Faltan ${missing.length} tipos de evento requeridos en los logs cargados. Algunas métricas se calculan por inferencia temporal.`
+        ? `Faltan ${missing.length} tipos de evento esperados para el análisis completo en los logs cargados. Algunas métricas se calculan por inferencia temporal.`
         : 'Los tipos de evento principales aparecen en los datos. Aun así, algunas métricas tácticas pueden ser más sólidas si se guardan directamente en el evento.';
       $('qualityPills').innerHTML = `
         <div class="pill"><span>Cobertura</span><strong>${fmtPct(quality.coverage_score_pct, 0)}</strong></div>
         <div class="pill"><span>Eventos faltantes</span><strong>${fmtInt(missing.length)}</strong></div>
         <div class="pill"><span>Métricas inferidas</span><strong>${fmtInt(inferred.length)}</strong></div>
+        <div class="pill"><span>LevelComplete inferidos</span><strong>${fmtInt(quality.inferred_events?.LevelComplete || 0)}</strong></div>
+        <div class="pill"><span>estadoJugador usados</span><strong>${fmtInt(quality.inferred_events?.PlayerState_from_estadoJugador || 0)}</strong></div>
       `;
       $('warningsList').innerHTML = (quality.warnings || []).length
         ? quality.warnings.map(w => `<li>${escapeHtml(w)}</li>`).join('')
         : '<li>Sin avisos relevantes.</li>';
-      $('suggestionsList').innerHTML = (quality.suggestions || []).length
-        ? quality.suggestions.map(s => `<li>${escapeHtml(s)}</li>`).join('')
-        : '<li>Sin sugerencias.</li>';
     }
 
     function renderLevelOptions(report) {
@@ -673,33 +797,94 @@
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
       const width = rect.width;
       const height = rect.height;
+      const selectedType = mapType.value;
+      const selectedLevel = mapLevel.value || 'all';
+      const background = mapBackgrounds[String(selectedLevel)] || mapBackgrounds.all || null;
+      const backgroundMeta = mapBackgroundMeta[String(selectedLevel)] || mapBackgroundMeta.all || null;
       ctx.clearRect(0, 0, width, height);
-      drawBackground(width, height);
+      drawBackground(width, height, selectedLevel, background, backgroundMeta);
 
       if (!currentReport) {
         $('mapEmpty').style.display = 'grid';
         return;
       }
 
-      const selectedType = mapType.value;
-      const selectedLevel = mapLevel.value;
-      const points = (currentReport.heatmaps?.points?.[selectedType] || []).filter(p => selectedLevel === 'all' || String(p.level) === selectedLevel);
-      const bounds = currentReport.heatmaps?.bounds || {};
-      if (!points.length || bounds.min_x === null || bounds.min_x === undefined) {
+      const points = (currentReport.heatmaps?.points?.[selectedType] || [])
+        .filter(p => selectedLevel === 'all' || String(p.level) === selectedLevel);
+      const bounds = getBoundsForSelection(selectedLevel, points);
+      if (!points.length || !bounds || bounds.min_x === null || bounds.min_x === undefined) {
         $('mapEmpty').textContent = 'No hay puntos para esta combinación de mapa y nivel.';
         $('mapEmpty').style.display = 'grid';
         return;
       }
       $('mapEmpty').style.display = 'none';
-      drawAxes(width, height, bounds);
+      const viewport = getProjectionViewport(width, height, background, backgroundMeta);
+      drawAxes(width, height, bounds, viewport);
 
-      if (selectedType === 'route') drawRoute(points, bounds, width, height);
-      else drawHeatPoints(points, bounds, width, height, selectedType);
+      if (selectedType === 'route') drawRoute(points, bounds, viewport);
+      else drawHeatPoints(points, bounds, viewport, selectedType);
     }
 
-    function drawBackground(width, height) {
+    function getBoundsForSelection(selectedLevel, points) {
+      if (selectedLevel !== 'all') {
+        const levelKey = String(selectedLevel);
+        const analyzerBounds = currentReport?.heatmaps?.bounds_by_level?.[levelKey];
+        const reportOverride = currentReport?.heatmaps?.level_world_bounds_overrides?.[levelKey];
+        const fallbackOverride = fallbackLevelBounds[levelKey];
+        const override = reportOverride || fallbackOverride;
+        if (override && override.min_x !== null && override.min_x !== undefined) {
+          return {
+            ...(analyzerBounds || {}),
+            ...override,
+            x_axis: override.x_axis || analyzerBounds?.x_axis || 'x',
+            y_axis: override.y_axis || analyzerBounds?.y_axis || 'y',
+            bounds_source: override.bounds_source || 'level_world_bounds_override',
+          };
+        }
+        if (analyzerBounds && analyzerBounds.min_x !== null && analyzerBounds.min_x !== undefined) {
+          return analyzerBounds;
+        }
+      }
+      const globalBounds = currentReport?.heatmaps?.bounds;
+      if (selectedLevel === 'all' && globalBounds && globalBounds.min_x !== null && globalBounds.min_x !== undefined) {
+        return globalBounds;
+      }
+      return computeBoundsFromPoints(points);
+    }
+
+    function fitRectContain(sourceWidth, sourceHeight, x, y, width, height) {
+      if (!sourceWidth || !sourceHeight) return { x, y, width, height };
+      const scale = Math.min(width / sourceWidth, height / sourceHeight);
+      const drawWidth = sourceWidth * scale;
+      const drawHeight = sourceHeight * scale;
+      return {
+        x: x + (width - drawWidth) / 2,
+        y: y + (height - drawHeight) / 2,
+        width: drawWidth,
+        height: drawHeight,
+      };
+    }
+
+    function getProjectionViewport(width, height, background, backgroundMeta) {
+      const outerPad = 28;
+      const outer = { x: outerPad, y: outerPad, width: width - outerPad * 2, height: height - outerPad * 2 };
+      if (!background) return { x: outer.x, y: outer.y, width: outer.width, height: outer.height };
+      const imgWidth = background.naturalWidth || background.width;
+      const imgHeight = background.naturalHeight || background.height;
+      const fitted = fitRectContain(imgWidth, imgHeight, outer.x, outer.y, outer.width, outer.height);
+      const content = backgroundMeta?.contentBox || { left: 0, top: 0, width: imgWidth, height: imgHeight };
+      return {
+        x: fitted.x + (content.left / imgWidth) * fitted.width,
+        y: fitted.y + (content.top / imgHeight) * fitted.height,
+        width: fitted.width * (content.width / imgWidth),
+        height: fitted.height * (content.height / imgHeight),
+      };
+    }
+
+    function drawBackground(width, height, selectedLevel = 'all', background = null, backgroundMeta = null) {
       ctx.fillStyle = '#070910';
       ctx.fillRect(0, 0, width, height);
+
       ctx.strokeStyle = 'rgba(255,255,255,0.055)';
       ctx.lineWidth = 1;
       for (let x = 0; x <= width; x += width / 10) {
@@ -708,38 +893,118 @@
       for (let y = 0; y <= height; y += height / 8) {
         ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(width, y); ctx.stroke();
       }
+
+      if (background) {
+        const outerPad = 28;
+        const imgWidth = background.naturalWidth || background.width;
+        const imgHeight = background.naturalHeight || background.height;
+        const fitted = fitRectContain(imgWidth, imgHeight, outerPad, outerPad, width - outerPad * 2, height - outerPad * 2);
+        ctx.save();
+        ctx.globalAlpha = 0.82;
+        ctx.drawImage(background, fitted.x, fitted.y, fitted.width, fitted.height);
+        ctx.restore();
+        ctx.fillStyle = 'rgba(7,9,16,0.10)';
+        ctx.fillRect(fitted.x, fitted.y, fitted.width, fitted.height);
+
+        const viewport = getProjectionViewport(width, height, background, backgroundMeta);
+        ctx.save();
+        ctx.strokeStyle = 'rgba(255,255,255,0.18)';
+        ctx.setLineDash([6, 6]);
+        ctx.strokeRect(viewport.x, viewport.y, viewport.width, viewport.height);
+        ctx.restore();
+      }
     }
 
-    function drawAxes(width, height, bounds) {
-      ctx.fillStyle = 'rgba(255,255,255,0.55)';
+    function drawAxes(width, height, bounds, viewport) {
+      ctx.fillStyle = 'rgba(255,255,255,0.72)';
       ctx.font = '12px system-ui, sans-serif';
-      ctx.fillText(`x: ${Number(bounds.min_x).toFixed(1)} → ${Number(bounds.max_x).toFixed(1)}`, 16, height - 18);
-      ctx.fillText(`z: ${Number(bounds.min_z).toFixed(1)} → ${Number(bounds.max_z).toFixed(1)}`, 16, height - 36);
+      const xAxis = bounds.x_axis || 'x';
+      const yAxis = bounds.y_axis || 'z';
+      ctx.fillText(`${xAxis}: ${Number(bounds.min_x).toFixed(1)} → ${Number(bounds.max_x).toFixed(1)}`, 16, height - 18);
+      ctx.fillText(`${yAxis}: ${Number(bounds.min_z).toFixed(1)} → ${Number(bounds.max_z).toFixed(1)}`, 16, height - 36);
+      if (viewport) {
+        const sourceText = bounds.bounds_source ? ` · bounds: ${bounds.bounds_source}` : '';
+        ctx.fillText(`La caja punteada marca el área útil del mapa detectada automáticamente${sourceText}.`, 16, 22);
+      }
     }
 
-    function project(point, bounds, width, height) {
-      const pad = 28;
-      const xRatio = (point.x - bounds.min_x) / (bounds.max_x - bounds.min_x);
-      const zRatio = (point.z - bounds.min_z) / (bounds.max_z - bounds.min_z);
+    function rangeFor(points, key) {
+      const values = points.map(p => Number(p[key])).filter(Number.isFinite);
+      if (values.length < 2) return 0;
+      return Math.max(...values) - Math.min(...values);
+    }
+
+    function preferredMapYAxis(points) {
+      if (points.some(p => p.map_y !== undefined)) return 'map_y';
+      const zRange = rangeFor(points, 'z');
+      const yRange = rangeFor(points, 'y');
+      return zRange <= 0.001 && yRange > 0.001 ? 'y' : 'z';
+    }
+
+    function pointMapX(point) {
+      const value = Number(point.map_x ?? point.x);
+      return Number.isFinite(value) ? value : 0;
+    }
+
+    function pointMapY(point, bounds) {
+      const axis = bounds.y_axis || preferredMapYAxis([point]);
+      const value = Number(point.map_y ?? point[axis] ?? point.z ?? point.y);
+      return Number.isFinite(value) ? value : 0;
+    }
+
+    function computeBoundsFromPoints(points) {
+      if (!points.length) return null;
+      const yAxis = preferredMapYAxis(points);
+      const xs = points.map(pointMapX).filter(Number.isFinite);
+      const ys = points.map(p => Number(p.map_y ?? p[yAxis] ?? p.z ?? p.y)).filter(Number.isFinite);
+      if (!xs.length || !ys.length) return null;
+      let minX = Math.min(...xs);
+      let maxX = Math.max(...xs);
+      let minY = Math.min(...ys);
+      let maxY = Math.max(...ys);
+      if (Math.abs(maxX - minX) <= 0.000001) { minX -= 1; maxX += 1; }
+      if (Math.abs(maxY - minY) <= 0.000001) { minY -= 1; maxY += 1; }
+      return { min_x: minX, max_x: maxX, min_z: minY, max_z: maxY, x_axis: 'x', y_axis: yAxis === 'map_y' ? (points[0].map_y_axis || 'y/z') : yAxis };
+    }
+
+    function project(point, bounds, viewport) {
+      const xRatio = (pointMapX(point) - bounds.min_x) / (bounds.max_x - bounds.min_x);
+      const yRatio = (pointMapY(point, bounds) - bounds.min_z) / (bounds.max_z - bounds.min_z);
       return {
-        x: pad + xRatio * (width - pad * 2),
-        y: height - pad - zRatio * (height - pad * 2),
+        x: viewport.x + xRatio * viewport.width,
+        y: viewport.y + viewport.height - yRatio * viewport.height,
       };
     }
 
-    function drawRoute(points, bounds, width, height) {
-      const sorted = [...points].sort((a, b) => a.timestamp - b.timestamp);
+    function drawRoute(points, bounds, viewport) {
+      const sorted = [...points].sort((a, b) => {
+        const sessionCmp = String(a.session || '').localeCompare(String(b.session || ''));
+        if (sessionCmp !== 0) return sessionCmp;
+        const segmentCmp = String(a.route_segment || '').localeCompare(String(b.route_segment || ''));
+        if (segmentCmp !== 0) return segmentCmp;
+        return Number(a.timestamp || 0) - Number(b.timestamp || 0);
+      });
+      const maxCanvasJump = Math.max(90, Math.min(viewport.width, viewport.height) * 0.28);
+      let previousPoint = null;
+      let previousProjected = null;
+
       ctx.strokeStyle = 'rgba(143,180,255,0.55)';
       ctx.lineWidth = 2;
       ctx.beginPath();
       sorted.forEach((point, index) => {
-        const p = project(point, bounds, width, height);
-        if (index === 0) ctx.moveTo(p.x, p.y);
+        const p = project(point, bounds, viewport);
+        const sameSegment = previousPoint && String(previousPoint.route_segment || '') === String(point.route_segment || '');
+        const distance = previousProjected ? Math.hypot(p.x - previousProjected.x, p.y - previousProjected.y) : Infinity;
+        const breaksRoute = !previousPoint || !sameSegment || distance > maxCanvasJump;
+        if (breaksRoute) ctx.moveTo(p.x, p.y);
         else ctx.lineTo(p.x, p.y);
+        previousPoint = point;
+        previousProjected = p;
       });
       ctx.stroke();
+
       sorted.forEach((point, index) => {
-        const p = project(point, bounds, width, height);
+        const p = project(point, bounds, viewport);
         ctx.fillStyle = index === 0 ? '#49d6b4' : '#8fb4ff';
         ctx.beginPath();
         ctx.arc(p.x, p.y, index === 0 ? 5 : 3, 0, Math.PI * 2);
@@ -747,7 +1012,7 @@
       });
     }
 
-    function drawHeatPoints(points, bounds, width, height, type) {
+    function drawHeatPoints(points, bounds, viewport, type) {
       const colorMap = {
         death: [255, 77, 109],
         spotted: [255, 186, 90],
@@ -757,7 +1022,7 @@
       const color = colorMap[type] || [255, 255, 255];
       const buckets = new Map();
       points.forEach(point => {
-        const p = project(point, bounds, width, height);
+        const p = project(point, bounds, viewport);
         const key = `${Math.round(p.x / 18)},${Math.round(p.y / 18)}`;
         const prev = buckets.get(key) || { x: p.x, y: p.y, count: 0 };
         prev.count += 1;
@@ -776,7 +1041,7 @@
         ctx.fill();
       });
       points.forEach(point => {
-        const p = project(point, bounds, width, height);
+        const p = project(point, bounds, viewport);
         ctx.fillStyle = `rgb(${color[0]},${color[1]},${color[2]})`;
         ctx.beginPath(); ctx.arc(p.x, p.y, 3, 0, Math.PI * 2); ctx.fill();
       });
