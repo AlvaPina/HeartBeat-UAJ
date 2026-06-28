@@ -51,9 +51,9 @@ GREEN_ZONE_KEYS = ("tamañoZonaVerde", "tamanoZonaVerde", "greenZoneSize", "gree
 
 # En Unity se guarda el buildIndex de la escena. En este proyecto los niveles
 # jugables están montados cada 3 escenas: build 3 => nivel 1, build 6 => nivel 2,
-# build 9 => nivel 3, build 12 => nivel 4 y build 15 => nivel 5.
-LEVEL_INDEX_TO_REAL = {3: 1, 6: 2, 9: 3, 12: 4, 15: 5}
-REAL_LEVELS = {1, 2, 3, 4, 5}
+# build 9 => nivel 3, build 12 => nivel 4, build 15 => nivel 5 y build 18 => nivel 6/final.
+LEVEL_INDEX_TO_REAL = {3: 1, 6: 2, 9: 3, 12: 4, 15: 5, 18: 6}
+REAL_LEVELS = {1, 2, 3, 4, 5, 6}
 
 
 
@@ -61,9 +61,13 @@ REAL_LEVELS = {1, 2, 3, 4, 5}
 # Sin esto, si el jugador no recorre todo el mapa, el dashboard estira el recorrido
 # hasta los bordes de la imagen usando solo min/max de puntos visitados.
 LEVEL_WORLD_BOUNDS_OVERRIDES = {
-    # Nivel 3: la ruta de la muestra no cubre la sala derecha ni todo el borde inferior.
-    # Estos límites evitan que el recorrido se estire hasta zonas grises/imposibles del fondo.
-    "3": {"min_x": -31.0, "max_x": 14.0, "min_z": -39.0, "max_z": 2.0},
+    # Bounds sacados manualmente desde el objeto padre "Black Rooms" de cada escena.
+    # En el JSON el eje vertical se llama min_z/max_z por compatibilidad con el dashboard,
+    # pero en este juego 2D corresponde realmente a Y de Unity.
+    "1": {"min_x": -10.677, "max_x": 32.932, "min_z": -43.540, "max_z": 11.643},
+    "2": {"min_x": -6.657, "max_x": 51.907, "min_z": -39.610, "max_z": 12.771},
+    "3": {"min_x": -30.740, "max_x": 20.226, "min_z": -40.496, "max_z": 7.682},
+    "5": {"min_x": -3.528, "max_x": 50.493, "min_z": -67.548, "max_z": 7.700},
 }
 
 

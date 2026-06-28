@@ -371,9 +371,12 @@
     const mapBackgrounds = {};
     const mapBackgroundMeta = {};
     // Bounds del mapa completo en coordenadas Unity. Evita que un nivel se estire
-    // según solo los puntos visitados. Especialmente importante en el nivel 3.
+    // según solo los puntos visitados. Estos valores salen del objeto Black Rooms.
     const fallbackLevelBounds = {
-      '3': { min_x: -31.0, max_x: 14.0, min_z: -39.0, max_z: 2.0, x_axis: 'x', y_axis: 'y', bounds_source: 'dashboard_fallback_level_world_bounds' },
+      '1': { min_x: -10.677, max_x: 32.932, min_z: -43.540, max_z: 11.643, x_axis: 'x', y_axis: 'y', bounds_source: 'dashboard_fallback_black_rooms_bounds' },
+      '2': { min_x: -6.657, max_x: 51.907, min_z: -39.610, max_z: 12.771, x_axis: 'x', y_axis: 'y', bounds_source: 'dashboard_fallback_black_rooms_bounds' },
+      '3': { min_x: -30.740, max_x: 20.226, min_z: -40.496, max_z: 7.682, x_axis: 'x', y_axis: 'y', bounds_source: 'dashboard_fallback_black_rooms_bounds' },
+      '5': { min_x: -3.528, max_x: 50.493, min_z: -67.548, max_z: 7.700, x_axis: 'x', y_axis: 'y', bounds_source: 'dashboard_fallback_black_rooms_bounds' },
     };
 
     pickButton.addEventListener('click', () => fileInput.click());
