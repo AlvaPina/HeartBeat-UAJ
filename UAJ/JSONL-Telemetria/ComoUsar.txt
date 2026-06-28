@@ -1,0 +1,9 @@
+La telemetria se genera en este directorio
+
+C:\Users\usuario\AppData\LocalLow\AppleAxion\HeartBeat
+
+Copiar todo el contenido de carpeta en este directorio 
+
+ejecutar el bat
+
+añadir el json que se genera en la misma carpeta que el bat en el HTML que hemos montado
